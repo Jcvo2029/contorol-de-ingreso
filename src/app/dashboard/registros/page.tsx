@@ -49,6 +49,9 @@ export default function RegistrosPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
   
+  // Form toggle state (collapsed by default)
+  const [showForm, setShowForm] = useState(false);
+
   // Person fields
   const [visitorType, setVisitorType] = useState<'Empleado' | 'Proveedor/Cliente'>('Empleado');
   const [idNumber, setIdNumber] = useState('');
@@ -71,8 +74,16 @@ export default function RegistrosPage() {
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
+  // Quick Checkout modal state
+  const [checkoutTarget, setCheckoutTarget] = useState<Registry | null>(null);
+  const [checkoutConfirmId, setCheckoutConfirmId] = useState('');
+  const [checkoutReason, setCheckoutReason] = useState('Salida de la empresa');
+  const [checkoutNotes, setCheckoutNotes] = useState('');
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+
   // Scanner state
   const [isScanning, setIsScanning] = useState(false);
+  const [scannerContext, setScannerContext] = useState<'form' | 'checkout'>('form');
   const html5QrCode = useRef<Html5Qrcode | null>(null);
   const scannerStarted = useRef(false);
 
@@ -147,17 +158,17 @@ export default function RegistrosPage() {
       setBrandModel(found.brandModel || '');
       setOwnership(found.ownership || 'Propio de la empresa');
     } else {
-      setAssetCode(''); // Clear it so it gets auto-generated
+      setAssetCode('');
     }
   };
 
-  // QR Scanning Logic — step 1: just show the modal
-  const startScanner = () => {
+  // QR Scanning Logic
+  const startScanner = (context: 'form' | 'checkout' = 'form') => {
+    setScannerContext(context);
     scannerStarted.current = false;
     setIsScanning(true);
   };
 
-  // Step 2: once the modal (and #qr-reader div) is in the DOM, start the camera
   useEffect(() => {
     if (!isScanning || scannerStarted.current) return;
 
@@ -196,9 +207,24 @@ export default function RegistrosPage() {
 
   const handleScanSuccess = (decodedText: string) => {
     stopScanner();
-    setAssetCode(decodedText);
 
-    // Autofill by Asset Code
+    if (scannerContext === 'checkout' && checkoutTarget) {
+      // In checkout context: verify scanned QR against target assetCode, serialNumber or idNumber
+      const matchesAsset = checkoutTarget.assetCode.toLowerCase() === decodedText.toLowerCase();
+      const matchesSerial = checkoutTarget.serialNumber.toLowerCase() === decodedText.toLowerCase();
+      const matchesId = checkoutTarget.idNumber.toLowerCase() === decodedText.toLowerCase();
+
+      if (matchesAsset || matchesSerial || matchesId) {
+        setCheckoutConfirmId(checkoutTarget.idNumber);
+        alert(`✓ QR verificado con éxito: Equipo perteneciente a ${checkoutTarget.employeeName}`);
+      } else {
+        alert(`El QR escaneado (${decodedText}) no coincide con el equipo de ${checkoutTarget.employeeName}.`);
+      }
+      return;
+    }
+
+    // In form context: set asset code and autofill details
+    setAssetCode(decodedText);
     const found = equipments.find(eq => eq.assetCode.toLowerCase() === decodedText.toLowerCase());
     if (found) {
       setSerialNumber(found.serialNumber || '');
@@ -206,7 +232,6 @@ export default function RegistrosPage() {
       setBrandModel(found.brandModel || '');
       setOwnership(found.ownership || 'Propio de la empresa');
     } else {
-      // It's a new Asset Code (maybe a pre-printed label)
       setSerialNumber('');
       setBrandModel('');
     }
@@ -225,27 +250,22 @@ export default function RegistrosPage() {
 
     setLoading(true);
     try {
-      // 1. Check if equipment exists in master DB
       let finalAssetCode = assetCode;
       
-      // Auto-generate Asset Code if empty
       if (!finalAssetCode.trim()) {
         finalAssetCode = `ACT-${Math.floor(100000 + Math.random() * 900000)}`;
       }
       
       let foundEq = equipments.find(eq => eq.assetCode.toLowerCase() === finalAssetCode.toLowerCase() || eq.serialNumber.toLowerCase() === serialNumber.toLowerCase());
-      
       const newStatus = type === 'Entrada' ? 'Dentro' : 'Fuera';
 
       if (foundEq) {
-        // Update existing equipment status
         await updateDoc(doc(db, 'equipos', foundEq.id), {
           status: newStatus,
-          assetCode: finalAssetCode // in case it was mapped by serial but assetCode was empty
+          assetCode: finalAssetCode
         });
         finalAssetCode = foundEq.assetCode || finalAssetCode;
       } else {
-        // Create new equipment on the fly
         await addDoc(collection(db, 'equipos'), {
           assetCode: finalAssetCode,
           serialNumber,
@@ -257,7 +277,6 @@ export default function RegistrosPage() {
         });
       }
 
-      // 2. Save the registry log
       await addDoc(collection(db, 'registros'), {
         visitorType,
         idNumber,
@@ -277,7 +296,7 @@ export default function RegistrosPage() {
         registeredBy: currentUser?.name || 'Desconocido'
       });
       
-      // Clear form
+      // Clear form and collapse it
       setVisitorType('Empleado');
       setIdNumber('');
       setEmployeeName('');
@@ -291,12 +310,63 @@ export default function RegistrosPage() {
       setEquipmentState('Bueno');
       setReason('');
       setNotes('');
+      setShowForm(false);
+
+      alert(`✓ ${type} registrada correctamente para ${employeeName}.`);
       
     } catch (error: any) {
       console.error("Error adding document: ", error);
       alert('Hubo un error al guardar el registro: ' + error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleQuickCheckout = async () => {
+    if (!checkoutTarget) return;
+    if (checkoutConfirmId.trim() !== checkoutTarget.idNumber.trim()) {
+      alert(`La cédula/ID ingresada (${checkoutConfirmId}) no coincide con la cédula del responsable (${checkoutTarget.idNumber}).`);
+      return;
+    }
+
+    setCheckoutLoading(true);
+    try {
+      // 1. Update equipment status in 'equipos'
+      const foundEq = equipments.find(eq => 
+        (checkoutTarget.assetCode && eq.assetCode.toLowerCase() === checkoutTarget.assetCode.toLowerCase()) || 
+        (checkoutTarget.serialNumber && eq.serialNumber.toLowerCase() === checkoutTarget.serialNumber.toLowerCase())
+      );
+      if (foundEq) {
+        await updateDoc(doc(db, 'equipos', foundEq.id), { status: 'Fuera' });
+      }
+
+      // 2. Add 'Salida' record in 'registros'
+      await addDoc(collection(db, 'registros'), {
+        visitorType: checkoutTarget.visitorType || 'Empleado',
+        idNumber: checkoutTarget.idNumber,
+        employeeName: checkoutTarget.employeeName,
+        inChargeEmployee: checkoutTarget.inChargeEmployee || '',
+        area: checkoutTarget.area || '',
+        assetCode: checkoutTarget.assetCode || '',
+        serialNumber: checkoutTarget.serialNumber || '',
+        equipmentType: checkoutTarget.equipmentType || 'Portátil',
+        brandModel: checkoutTarget.brandModel || '',
+        ownership: checkoutTarget.ownership || 'Propio de la empresa',
+        equipmentState: checkoutTarget.equipmentState || 'Bueno',
+        reason: checkoutReason || 'Salida de la empresa',
+        type: 'Salida',
+        notes: checkoutNotes || '',
+        timestamp: serverTimestamp(),
+        registeredBy: currentUser?.name || 'Desconocido'
+      });
+
+      setCheckoutTarget(null);
+      alert(`✓ Salida de equipo registrada con éxito para ${checkoutTarget.employeeName}`);
+    } catch (err: any) {
+      console.error("Error confirming checkout:", err);
+      alert("Error al registrar salida: " + err.message);
+    } finally {
+      setCheckoutLoading(false);
     }
   };
 
@@ -319,7 +389,7 @@ export default function RegistrosPage() {
         <div className="scanner-modal-overlay">
           <div className="scanner-modal">
             <h3><i className="fa-solid fa-qrcode"></i> Escanear Código QR</h3>
-            <p>Apunta la cámara al código QR del equipo</p>
+            <p>{scannerContext === 'checkout' ? 'Apunta al QR del equipo para verificar la salida' : 'Apunta la cámara al código QR del equipo'}</p>
             <div id="qr-reader" style={{ width: '100%', maxWidth: '400px', margin: '0 auto', overflow: 'hidden', borderRadius: '12px' }}></div>
             <button className="btn-cancel-scan" onClick={stopScanner}>
               Cancelar
@@ -328,224 +398,359 @@ export default function RegistrosPage() {
         </div>
       )}
 
-      <div className="registry-form-card">
-        <h2><i className="fa-solid fa-laptop"></i> Registro de Equipos</h2>
-        
-        {/* Fila 0: Tipo de Visitante */}
-        <div className="form-row" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Tipo de Persona *</label>
-            <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#1f2937' }}>
+      {/* Quick Checkout Confirmation Modal */}
+      {checkoutTarget && (
+        <div className="checkout-modal-overlay">
+          <div className="checkout-modal">
+            <div className="checkout-modal-header">
+              <h3><i className="fa-solid fa-person-walking-arrow-right"></i> Confirmar Salida de Equipo</h3>
+              <button 
+                onClick={() => setCheckoutTarget(null)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="checkout-info-box">
+              <div className="checkout-info-row">
+                <span>Responsable:</span>
+                <strong>{checkoutTarget.employeeName}</strong>
+              </div>
+              <div className="checkout-info-row">
+                <span>Cédula / ID:</span>
+                <strong>{checkoutTarget.idNumber}</strong>
+              </div>
+              <div className="checkout-info-row">
+                <span>Equipo:</span>
+                <strong>{checkoutTarget.equipmentType} - {checkoutTarget.brandModel}</strong>
+              </div>
+              <div className="checkout-info-row">
+                <span>Activo / SN:</span>
+                <strong>{checkoutTarget.assetCode} ({checkoutTarget.serialNumber})</strong>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="btn-scan-qr" 
+                onClick={() => startScanner('checkout')}
+                style={{ padding: '12px', fontSize: '0.9rem' }}
+              >
+                <i className="fa-solid fa-camera"></i> Escanear QR para Confirmar
+              </button>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Confirmar N° Identificación (Cédula) *</label>
                 <input 
-                  type="radio" 
-                  name="visitorType" 
-                  checked={visitorType === 'Empleado'} 
-                  onChange={() => setVisitorType('Empleado')} 
-                  style={{ width: '16px', height: '16px' }}
-                /> 
-                Empleado de la Empresa
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#1f2937' }}>
+                  type="text" 
+                  placeholder={`Ingresa la cédula (${checkoutTarget.idNumber}) para confirmar`}
+                  value={checkoutConfirmId}
+                  onChange={(e) => setCheckoutConfirmId(e.target.value)}
+                  style={{
+                    borderColor: checkoutConfirmId.trim() === checkoutTarget.idNumber.trim() ? '#10b981' : '#d1d5db',
+                    background: checkoutConfirmId.trim() === checkoutTarget.idNumber.trim() ? '#ecfdf5' : '#ffffff'
+                  }}
+                />
+                {checkoutConfirmId.trim() === checkoutTarget.idNumber.trim() && (
+                  <span style={{ fontSize: '12px', color: '#059669', fontWeight: '600' }}>✓ Cédula confirmada correctamente</span>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Motivo de Salida</label>
                 <input 
-                  type="radio" 
-                  name="visitorType" 
-                  checked={visitorType === 'Proveedor/Cliente'} 
-                  onChange={() => setVisitorType('Proveedor/Cliente')} 
-                  style={{ width: '16px', height: '16px' }}
-                /> 
-                Proveedor o Cliente (Visitante)
-              </label>
+                  type="text" 
+                  value={checkoutReason}
+                  onChange={(e) => setCheckoutReason(e.target.value)}
+                  placeholder="Ej: Salida de la empresa, Mantenimiento..."
+                />
+              </div>
+
+              <div className="form-group">
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Observaciones (Opcional)</label>
+                <input 
+                  type="text" 
+                  value={checkoutNotes}
+                  onChange={(e) => setCheckoutNotes(e.target.value)}
+                  placeholder="Ej: Salida autorizada con pase..."
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
+              <button 
+                className="btn-salida" 
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={handleQuickCheckout}
+                disabled={checkoutLoading || checkoutConfirmId.trim() !== checkoutTarget.idNumber.trim()}
+              >
+                {checkoutLoading ? 'Guardando...' : 'Confirmar y Marcar Salida'}
+              </button>
+              <button 
+                className="logout-btn" 
+                style={{ flex: '0.4', justifyContent: 'center' }}
+                onClick={() => setCheckoutTarget(null)}
+              >
+                Cancelar
+              </button>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Fila 1: Responsable y Área */}
-        <div className="form-row">
-          <div className="form-group" style={{ flex: '0.8' }}>
-            <label>N° Identificación (CC/ID) *</label>
-            <input 
-              type="text" 
-              placeholder="Ej: 123456789" 
-              value={idNumber}
-              onChange={handleIdNumberChange}
-              disabled={loading}
-              style={{ borderColor: personas.find(p => p.idNumber === idNumber) ? '#4f46e5' : undefined }}
-            />
-          </div>
+      {/* Action Header & Collapsible Form */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
+            <i className="fa-solid fa-clipboard-list" style={{ color: '#4f46e5', marginRight: '10px' }}></i>
+            Control de Entradas y Salidas
+          </h2>
+          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '0.9rem' }}>
+            Gestiona los registros e ingresos de equipos en las instalaciones.
+          </p>
+        </div>
 
-          <div className="form-group">
-            <label>{visitorType === 'Empleado' ? 'Empleado Responsable *' : 'Nombre del Visitante (Proveedor/Cliente) *'}</label>
-            <input 
-              type="text" 
-              placeholder="Ej: Juan Pérez" 
-              value={employeeName}
-              onChange={(e) => setEmployeeName(e.target.value)}
-              disabled={loading}
-            />
-          </div>
+        <button 
+          className="btn-toggle-form"
+          onClick={() => setShowForm(!showForm)}
+        >
+          <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
+          {showForm ? 'Ocultar Formulario' : 'Nuevo Registro / Ingreso'}
+        </button>
+      </div>
+
+      {/* Registration Form (Collapsible) */}
+      {showForm && (
+        <div className="registry-form-card">
+          <h2><i className="fa-solid fa-laptop"></i> Formulario de Registro de Equipos</h2>
           
-          {visitorType === 'Proveedor/Cliente' && (
-            <div className="form-group">
-              <label>Empleado a Cargo (Quien autoriza) *</label>
+          {/* Fila 0: Tipo de Visitante */}
+          <div className="form-row" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Tipo de Persona *</label>
+              <div style={{ display: 'flex', gap: '16px', marginTop: '8px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#1f2937' }}>
+                  <input 
+                    type="radio" 
+                    name="visitorType" 
+                    checked={visitorType === 'Empleado'} 
+                    onChange={() => setVisitorType('Empleado')} 
+                    style={{ width: '16px', height: '16px' }}
+                  /> 
+                  Empleado de la Empresa
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: 'normal', color: '#1f2937' }}>
+                  <input 
+                    type="radio" 
+                    name="visitorType" 
+                    checked={visitorType === 'Proveedor/Cliente'} 
+                    onChange={() => setVisitorType('Proveedor/Cliente')} 
+                    style={{ width: '16px', height: '16px' }}
+                  /> 
+                  Proveedor o Cliente (Visitante)
+                </label>
+              </div>
+            </div>
+          </div>
+
+          {/* Fila 1: Responsable y Área */}
+          <div className="form-row">
+            <div className="form-group" style={{ flex: '0.8' }}>
+              <label>N° Identificación (CC/ID) *</label>
               <input 
                 type="text" 
-                placeholder="Ej: Ing. Carlos Gómez" 
-                value={inChargeEmployee}
-                onChange={(e) => setInChargeEmployee(e.target.value)}
+                placeholder="Ej: 123456789" 
+                value={idNumber}
+                onChange={handleIdNumberChange}
+                disabled={loading}
+                style={{ borderColor: personas.find(p => p.idNumber === idNumber) ? '#4f46e5' : undefined }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>{visitorType === 'Empleado' ? 'Empleado Responsable *' : 'Nombre del Visitante (Proveedor/Cliente) *'}</label>
+              <input 
+                type="text" 
+                placeholder="Ej: Juan Pérez" 
+                value={employeeName}
+                onChange={(e) => setEmployeeName(e.target.value)}
                 disabled={loading}
               />
             </div>
-          )}
+            
+            {visitorType === 'Proveedor/Cliente' && (
+              <div className="form-group">
+                <label>Empleado a Cargo (Quien autoriza) *</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: Ing. Carlos Gómez" 
+                  value={inChargeEmployee}
+                  onChange={(e) => setInChargeEmployee(e.target.value)}
+                  disabled={loading}
+                />
+              </div>
+            )}
 
-          <div className="form-group">
-            <label>{visitorType === 'Empleado' ? 'Área / Departamento' : 'Empresa / Proveedor'}</label>
-            <input 
-              type="text" 
-              placeholder={visitorType === 'Empleado' ? "Ej: Tecnología..." : "Ej: Microsoft..."} 
-              value={area}
-              onChange={(e) => setArea(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-        </div>
-
-        {/* Action button to open Scanner */}
-        <div style={{ marginBottom: '20px' }}>
-          <button type="button" className="btn-scan-qr" onClick={startScanner}>
-            <i className="fa-solid fa-camera"></i> Escanear Etiqueta QR del Equipo
-          </button>
-        </div>
-
-        {/* Fila 2: Datos del Equipo */}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Serial *</label>
-            <input 
-              type="text" 
-              placeholder="Ej: SN-12345678 (Autocompleta si existe)" 
-              value={serialNumber}
-              onChange={handleSerialNumberChange}
-              disabled={loading}
-            />
+            <div className="form-group">
+              <label>{visitorType === 'Empleado' ? 'Área / Departamento' : 'Empresa / Proveedor'}</label>
+              <input 
+                type="text" 
+                placeholder={visitorType === 'Empleado' ? "Ej: Tecnología..." : "Ej: Microsoft..."} 
+                value={area}
+                onChange={(e) => setArea(e.target.value)}
+                disabled={loading}
+              />
+            </div>
           </div>
 
-          <div className="form-group">
-            <label>Código de Activo</label>
-            <input 
-              type="text" 
-              placeholder={assetCode ? assetCode : "Generado por el sistema o por QR"} 
-              value={assetCode}
-              disabled={true}
-              style={{ background: assetCode ? '#e0e7ff' : '#f3f4f6', cursor: 'not-allowed', color: assetCode ? '#3730a3' : '#6b7280', fontWeight: assetCode ? 'bold' : 'normal' }}
-            />
+          {/* Action button to open Scanner */}
+          <div style={{ marginBottom: '20px' }}>
+            <button type="button" className="btn-scan-qr" onClick={() => startScanner('form')}>
+              <i className="fa-solid fa-camera"></i> Escanear Etiqueta QR del Equipo
+            </button>
           </div>
-          
-          <div className="form-group">
-            <label>Tipo de Equipo *</label>
-            <select 
-              value={equipmentType}
-              onChange={(e) => setEquipmentType(e.target.value)}
-              disabled={loading}
-              style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+
+          {/* Fila 2: Datos del Equipo */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Serial *</label>
+              <input 
+                type="text" 
+                placeholder="Ej: SN-12345678 (Autocompleta si existe)" 
+                value={serialNumber}
+                onChange={handleSerialNumberChange}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Código de Activo</label>
+              <input 
+                type="text" 
+                placeholder={assetCode ? assetCode : "Generado por el sistema o por QR"} 
+                value={assetCode}
+                disabled={true}
+                style={{ background: assetCode ? '#e0e7ff' : '#f3f4f6', cursor: 'not-allowed', color: assetCode ? '#3730a3' : '#6b7280', fontWeight: assetCode ? 'bold' : 'normal' }}
+              />
+            </div>
+            
+            <div className="form-group">
+              <label>Tipo de Equipo *</label>
+              <select 
+                value={equipmentType}
+                onChange={(e) => setEquipmentType(e.target.value)}
+                disabled={loading}
+                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+              >
+                <option value="Portátil">Portátil</option>
+                <option value="PC Escritorio">PC Escritorio</option>
+                <option value="Monitor">Monitor</option>
+                <option value="Tablet">Tablet</option>
+                <option value="Teclado/Mouse">Teclado / Mouse</option>
+                <option value="Escáner/Impresora">Escáner / Impresora</option>
+                <option value="Otro">Otro</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 3: Marca y Propiedad */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Marca y Modelo *</label>
+              <input 
+                type="text" 
+                placeholder="Ej: Dell Latitude 5420" 
+                value={brandModel}
+                onChange={(e) => setBrandModel(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Pertenencia del Equipo *</label>
+              <select 
+                value={ownership}
+                onChange={(e) => setOwnership(e.target.value)}
+                disabled={loading}
+                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+              >
+                <option value="Propio de la empresa">Propio de la empresa</option>
+                <option value="Personal">Personal</option>
+                <option value="Proveedor">Proveedor</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Fila 4: Movimiento y Estado */}
+          <div className="form-row">
+            <div className="form-group">
+              <label>Estado del Equipo *</label>
+              <select 
+                value={equipmentState}
+                onChange={(e) => setEquipmentState(e.target.value)}
+                disabled={loading}
+                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+              >
+                <option value="Bueno">Bueno</option>
+                <option value="Regular">Regular</option>
+                <option value="Malo">Malo</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label>Motivo *</label>
+              <input 
+                type="text" 
+                placeholder="Ej: Trabajo en casa, Mantenimiento..." 
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="form-group" style={{ flex: '2' }}>
+              <label>Observaciones (Opcional)</label>
+              <input 
+                type="text" 
+                placeholder="Ej: Equipo con un rayón en la pantalla..." 
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          <div className="form-actions">
+            <button 
+              className="btn-entrada" 
+              onClick={() => handleRegister('Entrada')}
+              disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
             >
-              <option value="Portátil">Portátil</option>
-              <option value="PC Escritorio">PC Escritorio</option>
-              <option value="Monitor">Monitor</option>
-              <option value="Tablet">Tablet</option>
-              <option value="Teclado/Mouse">Teclado / Mouse</option>
-              <option value="Escáner/Impresora">Escáner / Impresora</option>
-              <option value="Otro">Otro</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Fila 3: Marca y Propiedad */}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Marca y Modelo *</label>
-            <input 
-              type="text" 
-              placeholder="Ej: Dell Latitude 5420" 
-              value={brandModel}
-              onChange={(e) => setBrandModel(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Pertenencia del Equipo *</label>
-            <select 
-              value={ownership}
-              onChange={(e) => setOwnership(e.target.value)}
-              disabled={loading}
-              style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+              <i className="fa-solid fa-arrow-right-to-bracket"></i> Marcar Entrada
+            </button>
+            
+            <button 
+              className="btn-salida" 
+              onClick={() => handleRegister('Salida')}
+              disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
             >
-              <option value="Propio de la empresa">Propio de la empresa</option>
-              <option value="Personal">Personal</option>
-              <option value="Proveedor">Proveedor</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Fila 4: Movimiento y Estado */}
-        <div className="form-row">
-          <div className="form-group">
-            <label>Estado del Equipo *</label>
-            <select 
-              value={equipmentState}
-              onChange={(e) => setEquipmentState(e.target.value)}
-              disabled={loading}
-              style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+              <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
+            </button>
+            
+            <button 
+              type="button" 
+              className="logout-btn"
+              onClick={() => setShowForm(false)}
             >
-              <option value="Bueno">Bueno</option>
-              <option value="Regular">Regular</option>
-              <option value="Malo">Malo</option>
-            </select>
-          </div>
-
-          <div className="form-group">
-            <label>Motivo *</label>
-            <input 
-              type="text" 
-              placeholder="Ej: Trabajo en casa, Mantenimiento..." 
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group" style={{ flex: '2' }}>
-            <label>Observaciones (Opcional)</label>
-            <input 
-              type="text" 
-              placeholder="Ej: Equipo con un rayón en la pantalla..." 
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              disabled={loading}
-            />
+              Cancelar
+            </button>
           </div>
         </div>
+      )}
 
-        <div className="form-actions">
-          <button 
-            className="btn-entrada" 
-            onClick={() => handleRegister('Entrada')}
-            disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
-          >
-            <i className="fa-solid fa-arrow-right-to-bracket"></i> Marcar Entrada
-          </button>
-          
-          <button 
-            className="btn-salida" 
-            onClick={() => handleRegister('Salida')}
-            disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
-          >
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
-          </button>
-        </div>
-      </div>
-
+      {/* Movements Table */}
       <div className="registry-list-card">
         <h2><i className="fa-solid fa-list-check"></i> Últimos Movimientos</h2>
         
@@ -558,12 +763,13 @@ export default function RegistrosPage() {
                 <th>Tipo / Motivo</th>
                 <th>Fecha / Hora</th>
                 <th>Detalles</th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {registries.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="empty-state">
+                  <td colSpan={6} className="empty-state">
                     No hay registros de entradas o salidas el día de hoy.
                   </td>
                 </tr>
@@ -604,6 +810,19 @@ export default function RegistrosPage() {
                       {reg.notes && <div style={{ marginTop: '2px', fontStyle: 'italic' }}>"{reg.notes}"</div>}
                       <div style={{ marginTop: '4px', color: '#9ca3af' }}>Por: {reg.registeredBy}</div>
                     </td>
+                    <td>
+                      <button 
+                        className="btn-quick-salida"
+                        onClick={() => {
+                          setCheckoutTarget(reg);
+                          setCheckoutConfirmId('');
+                          setCheckoutReason('Salida de la empresa');
+                          setCheckoutNotes('');
+                        }}
+                      >
+                        <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
+                      </button>
+                    </td>
                   </tr>
                 ))
               )}
@@ -614,3 +833,4 @@ export default function RegistrosPage() {
     </div>
   );
 }
+
