@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Ingreso - Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #CFE114; /* Lime green from logo */
+            --primary-hover: #b8c90f;
+            --secondary: #EB0072; /* Pink from logo */
+            --bg-dark: #2F2D2E; /* Dark gray from logo */
+            --bg-light: #f4f7f6;
+            --text-dark: #2F2D2E;
+            --text-muted: #6b7280;
+            --white: #ffffff;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            background-color: var(--bg-dark);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+            padding: 0 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 80px;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-brand img {
+            height: 60px;
+            width: auto;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 24px;
+            align-items: center;
+        }
+
+        .nav-links a {
+            text-decoration: none;
+            color: #9ca3af;
+            font-weight: 500;
+            font-size: 14px;
+            transition: color 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-links a:hover, .nav-links a.active {
+            color: var(--white);
+        }
+
+        .nav-links a.active {
+            position: relative;
+        }
+
+        .nav-links a.active::after {
+            content: '';
+            position: absolute;
+            bottom: -30px;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background-color: var(--primary);
+            border-radius: 3px 3px 0 0;
+        }
+
+        .user-profile {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .user-info {
+            text-align: right;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .user-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--white);
+        }
+
+        .user-role {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: var(--bg-dark);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .logout-btn {
+            background: none;
+            border: 1px solid #4b5563;
+            padding: 8px 12px;
+            border-radius: 8px;
+            color: #d1d5db;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+
+        .logout-btn:hover {
+            background-color: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border-color: #ef4444;
+        }
+
+        /* Main Content Area */
+        .main-content {
+            padding: 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .welcome-card {
+            background: var(--white);
+            border-radius: 16px;
+            padding: 32px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border-left: 6px solid var(--primary);
+        }
+
+        .welcome-card h1 {
+            margin: 0 0 8px 0;
+            font-size: 24px;
+        }
+
+        .welcome-card p {
+            margin: 0;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <img src="img/LOGO CONTEXSAS.png" alt="Contexsas Logo">
+        </div>
+
+        <div class="nav-links">
+            <a href="#" class="active"><i class="fa-solid fa-house"></i> Inicio</a>
+            <a href="#"><i class="fa-solid fa-users"></i> Empleados</a>
+            <a href="#"><i class="fa-solid fa-clock-rotate-left"></i> Registros</a>
+            <a href="#"><i class="fa-solid fa-gear"></i> Configuración</a>
+        </div>
+
+        <div class="user-profile">
+            <div class="user-info">
+                <span class="user-name">Usuario Prueba</span>
+                <span class="user-role">Administrador</span>
+            </div>
+            <div class="avatar">U</div>
+            <a href="index.html" class="logout-btn">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> Salir
+            </a>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="welcome-card">
+            <h1>Bienvenido al Panel Principal</h1>
+            <p>Has iniciado sesión correctamente. Aquí podrás gestionar el control de ingreso.</p>
+        </div>
+    </main>
+
+</body>
+</html>
