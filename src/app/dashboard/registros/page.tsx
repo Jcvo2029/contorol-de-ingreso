@@ -21,6 +21,7 @@ interface Registry {
   reason: string;
   type: 'Entrada' | 'Salida';
   notes: string;
+  photoUrl?: string;
   timestamp: any;
   registeredBy: string;
 }
@@ -33,6 +34,7 @@ interface Equipment {
   brandModel: string;
   ownership: string;
   status?: string;
+  photoUrl?: string;
 }
 
 interface Persona {
@@ -57,6 +59,7 @@ interface GroupedMovement {
   brandModel: string;
   ownership: string;
   equipmentState: string;
+  photoUrl?: string;
   entryTimestamp?: any;
   entryReason?: string;
   entryNotes?: string;
@@ -68,6 +71,43 @@ interface GroupedMovement {
   isCurrentlyInside: boolean;
   rawEntryRecord?: Registry;
 }
+
+// Client-side image compression helper
+const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 export default function RegistrosPage() {
   const [registries, setRegistries] = useState<Registry[]>([]);
@@ -90,6 +130,8 @@ export default function RegistrosPage() {
   const [equipmentType, setEquipmentType] = useState('Portátil');
   const [brandModel, setBrandModel] = useState('');
   const [ownership, setOwnership] = useState('Propio de la empresa');
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   
   // Movement fields
   const [equipmentState, setEquipmentState] = useState('Bueno');
@@ -98,6 +140,19 @@ export default function RegistrosPage() {
   
   const [loading, setLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        setPhotoUrl(compressed);
+      } catch (err) {
+        console.error("Error al procesar la foto:", err);
+        alert("No se pudo procesar la foto elegida.");
+      }
+    }
+  };
 
   // Quick Checkout modal state
   const [checkoutTarget, setCheckoutTarget] = useState<Registry | null>(null);
@@ -193,6 +248,7 @@ export default function RegistrosPage() {
           brandModel: reg.brandModel,
           ownership: reg.ownership,
           equipmentState: reg.equipmentState,
+          photoUrl: reg.photoUrl || '',
           entryTimestamp: reg.timestamp,
           entryReason: reg.reason,
           entryNotes: reg.notes,
@@ -209,6 +265,9 @@ export default function RegistrosPage() {
           group.exitReason = reg.reason;
           group.exitNotes = reg.notes;
           group.exitBy = reg.registeredBy;
+          if (reg.photoUrl && !group.photoUrl) {
+            group.photoUrl = reg.photoUrl;
+          }
           group.isCurrentlyInside = false;
 
           completedList.push(group);
@@ -227,6 +286,7 @@ export default function RegistrosPage() {
             brandModel: reg.brandModel,
             ownership: reg.ownership,
             equipmentState: reg.equipmentState,
+            photoUrl: reg.photoUrl || '',
             exitTimestamp: reg.timestamp,
             exitReason: reg.reason,
             exitNotes: reg.notes,
@@ -279,6 +339,7 @@ export default function RegistrosPage() {
       setEquipmentType(found.equipmentType || 'Portátil');
       setBrandModel(found.brandModel || '');
       setOwnership(found.ownership || 'Propio de la empresa');
+      if (found.photoUrl) setPhotoUrl(found.photoUrl);
     } else {
       setAssetCode('');
     }
@@ -351,6 +412,7 @@ export default function RegistrosPage() {
       setEquipmentType(found.equipmentType || 'Portátil');
       setBrandModel(found.brandModel || '');
       setOwnership(found.ownership || 'Propio de la empresa');
+      if (found.photoUrl) setPhotoUrl(found.photoUrl);
     } else {
       setSerialNumber('');
       setBrandModel('');
@@ -382,7 +444,8 @@ export default function RegistrosPage() {
       if (foundEq) {
         await updateDoc(doc(db, 'equipos', foundEq.id), {
           status: newStatus,
-          assetCode: finalAssetCode
+          assetCode: finalAssetCode,
+          ...(photoUrl ? { photoUrl } : {})
         });
         finalAssetCode = foundEq.assetCode || finalAssetCode;
       } else {
@@ -392,6 +455,7 @@ export default function RegistrosPage() {
           equipmentType,
           brandModel,
           ownership,
+          photoUrl: photoUrl || '',
           status: newStatus,
           createdAt: serverTimestamp()
         });
@@ -412,6 +476,7 @@ export default function RegistrosPage() {
         reason,
         type,
         notes,
+        photoUrl: photoUrl || '',
         timestamp: serverTimestamp(),
         registeredBy: currentUser?.name || 'Desconocido'
       });
@@ -430,6 +495,7 @@ export default function RegistrosPage() {
       setEquipmentState('Bueno');
       setReason('');
       setNotes('');
+      setPhotoUrl('');
       setShowForm(false);
 
       alert(`✓ ${type} registrada correctamente para ${employeeName}.`);
@@ -844,6 +910,36 @@ export default function RegistrosPage() {
             </div>
           </div>
 
+          {/* Fila 5: Foto del Dispositivo */}
+          <div className="form-row" style={{ background: '#f9fafb', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px dashed #cbd5e1' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#334155' }}>
+                <i className="fa-solid fa-camera" style={{ color: '#4f46e5' }}></i> 
+                Foto / Captura del Dispositivo (Opcional)
+              </label>
+              <input 
+                type="file" 
+                accept="image/*" 
+                capture="environment" 
+                onChange={handlePhotoChange}
+                disabled={loading}
+                style={{ marginTop: '8px' }}
+              />
+              {photoUrl && (
+                <div style={{ marginTop: '12px', position: 'relative', width: '100px', height: '100px' }}>
+                  <img src={photoUrl} alt="Vista previa equipo" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '10px', border: '2px solid #4f46e5' }} />
+                  <button 
+                    type="button" 
+                    onClick={() => setPhotoUrl('')} 
+                    style={{ position: 'absolute', top: '-8px', right: '-8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '24px', height: '24px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="form-actions">
             <button 
               className="btn-entrada" 
@@ -881,7 +977,7 @@ export default function RegistrosPage() {
             <thead>
               <tr>
                 <th>Persona / Responsable</th>
-                <th>Equipo / Código</th>
+                <th>Foto / Equipo</th>
                 <th>Ingreso (Entrada)</th>
                 <th>Salida</th>
                 <th>Estado Visita</th>
@@ -908,10 +1004,27 @@ export default function RegistrosPage() {
                       {group.area && <div style={{ fontSize: '11px', color: '#6b7280' }}>{group.area}</div>}
                     </td>
                     <td>
-                      <div>{group.equipmentType} - {group.brandModel}</div>
-                      <div style={{ marginTop: '4px' }}>
-                        <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>Activo: {group.assetCode}</span>
-                        <span style={{ fontSize: '11px', background: '#f3f4f6', color: '#4b5563', padding: '2px 6px', borderRadius: '4px' }}>SN: {group.serialNumber}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {group.photoUrl ? (
+                          <img 
+                            src={group.photoUrl} 
+                            alt={group.brandModel} 
+                            onClick={() => setPreviewImage(group.photoUrl || null)}
+                            style={{ width: '46px', height: '46px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #cbd5e1', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }} 
+                            title="Haz clic para ver foto del dispositivo"
+                          />
+                        ) : (
+                          <div style={{ width: '46px', height: '46px', borderRadius: '8px', background: '#f1f5f9', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', border: '1px solid #cbd5e1' }}>
+                            <i className="fa-solid fa-laptop"></i>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: '600', color: '#1f2937' }}>{group.equipmentType} - {group.brandModel}</div>
+                          <div style={{ marginTop: '2px' }}>
+                            <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>Activo: {group.assetCode}</span>
+                            <span style={{ fontSize: '11px', background: '#f3f4f6', color: '#4b5563', padding: '2px 6px', borderRadius: '4px' }}>SN: {group.serialNumber}</span>
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td>
@@ -986,6 +1099,18 @@ export default function RegistrosPage() {
           </table>
         </div>
       </div>
+
+      {/* Full Photo Modal Viewer */}
+      {previewImage && (
+        <div className="scanner-modal-overlay" onClick={() => setPreviewImage(null)} style={{ zIndex: 10000 }}>
+          <div className="checkout-modal" style={{ maxWidth: '600px', textAlign: 'center', background: 'transparent', boxShadow: 'none', padding: '0', border: 'none' }} onClick={e => e.stopPropagation()}>
+            <img src={previewImage} alt="Foto del Dispositivo" style={{ maxWidth: '100%', maxHeight: '75vh', borderRadius: '16px', border: '4px solid white', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} />
+            <div style={{ marginTop: '16px' }}>
+              <button className="btn-toggle-form" style={{ margin: '0 auto' }} onClick={() => setPreviewImage(null)}>Cerrar Foto</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

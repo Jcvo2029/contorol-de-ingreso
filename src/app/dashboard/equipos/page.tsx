@@ -13,12 +13,51 @@ interface Equipment {
   brandModel: string;
   ownership: string;
   status?: string;
+  photoUrl?: string;
 }
+
+// Client-side image compression to lightweight JPEG Data URL
+const compressImage = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.onerror = (error) => reject(error);
+    };
+    reader.onerror = (error) => reject(error);
+  });
+};
 
 export default function EquiposPage() {
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedQR, setSelectedQR] = useState<Equipment | null>(null);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Form State
@@ -27,6 +66,7 @@ export default function EquiposPage() {
   const [equipmentType, setEquipmentType] = useState('Portátil');
   const [brandModel, setBrandModel] = useState('');
   const [ownership, setOwnership] = useState('Propio de la empresa');
+  const [photoUrl, setPhotoUrl] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'equipos'), orderBy('assetCode', 'asc'));
@@ -39,6 +79,19 @@ export default function EquiposPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        setPhotoUrl(compressed);
+      } catch (err) {
+        console.error("Error al procesar la foto:", err);
+        alert("No se pudo procesar la foto elegida.");
+      }
+    }
+  };
 
   const handleAddEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,6 +108,7 @@ export default function EquiposPage() {
         equipmentType,
         brandModel,
         ownership,
+        photoUrl: photoUrl || '',
         status: 'Dentro',
         createdAt: serverTimestamp()
       });
@@ -64,6 +118,7 @@ export default function EquiposPage() {
       setEquipmentType('Portátil');
       setBrandModel('');
       setOwnership('Propio de la empresa');
+      setPhotoUrl('');
       setShowAddModal(false);
     } catch (error: any) {
       console.error("Error adding equipment: ", error);
@@ -87,7 +142,7 @@ export default function EquiposPage() {
           </button>
         </div>
         <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '14px' }}>
-          Base de datos maestra de ControlTech. Aquí puedes gestionar todos los activos tecnológicos, generar sus códigos QR y ver su estado actual.
+          Base de datos maestra de ControlTech. Aquí puedes gestionar todos los activos tecnológicos, adjuntar fotografías, generar sus códigos QR y ver su estado actual.
         </p>
         
         <div className="table-responsive">
@@ -95,7 +150,7 @@ export default function EquiposPage() {
             <thead>
               <tr>
                 <th>Código Activo</th>
-                <th>Serial / Marca</th>
+                <th>Foto / Dispositivo</th>
                 <th>Estado</th>
                 <th>Propiedad</th>
                 <th>Acciones</th>
@@ -116,8 +171,25 @@ export default function EquiposPage() {
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>{equip.equipmentType}</div>
                     </td>
                     <td>
-                      <div>{equip.brandModel}</div>
-                      <span style={{ fontFamily: 'monospace', fontSize: '12px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>SN: {equip.serialNumber}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        {equip.photoUrl ? (
+                          <img 
+                            src={equip.photoUrl} 
+                            alt={equip.brandModel} 
+                            onClick={() => setPreviewImage(equip.photoUrl || null)}
+                            style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e5e7eb', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }} 
+                            title="Haz clic para ver foto completa"
+                          />
+                        ) : (
+                          <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#f3f4f6', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', border: '1px solid #e5e7eb' }}>
+                            <i className="fa-solid fa-laptop"></i>
+                          </div>
+                        )}
+                        <div>
+                          <div style={{ fontWeight: '600', color: '#1f2937' }}>{equip.brandModel}</div>
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px' }}>SN: {equip.serialNumber}</span>
+                        </div>
+                      </div>
                     </td>
                     <td>
                       <span style={{
@@ -188,6 +260,17 @@ export default function EquiposPage() {
                   <option value="Proveedor">Proveedor</option>
                 </select>
               </div>
+              <div className="form-group">
+                <label><i className="fa-solid fa-camera"></i> Foto del Dispositivo (Opcional)</label>
+                <input type="file" accept="image/*" capture="environment" onChange={handlePhotoChange} />
+                {photoUrl && (
+                  <div style={{ marginTop: '8px', position: 'relative', width: '90px', height: '90px' }}>
+                    <img src={photoUrl} alt="Vista previa" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '2px solid #6366f1' }} />
+                    <button type="button" onClick={() => setPhotoUrl('')} style={{ position: 'absolute', top: '-8px', right: '-8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>✕</button>
+                  </div>
+                )}
+              </div>
+
               <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                 <button type="button" className="btn-qr" onClick={() => setShowAddModal(false)}>Cancelar</button>
                 <button type="submit" className="btn-primary" disabled={loading}>
@@ -205,6 +288,11 @@ export default function EquiposPage() {
           <div className="modal-content" style={{ maxWidth: '400px', textAlign: 'center' }}>
             <h3>Etiqueta QR <button className="close-btn" onClick={() => setSelectedQR(null)}>&times;</button></h3>
             <div className="qr-container">
+              {selectedQR.photoUrl && (
+                <div style={{ marginBottom: '12px' }}>
+                  <img src={selectedQR.photoUrl} alt="Foto equipo" style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '12px', border: '2px solid #e5e7eb' }} />
+                </div>
+              )}
               <div className="qr-code">
                 <QRCodeSVG value={selectedQR.assetCode || selectedQR.serialNumber} size={200} />
               </div>
@@ -218,6 +306,18 @@ export default function EquiposPage() {
               <button className="btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={handlePrintQR}>
                 <i className="fa-solid fa-print"></i> Imprimir Etiqueta
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Full Photo Modal Viewer */}
+      {previewImage && (
+        <div className="modal-overlay" onClick={() => setPreviewImage(null)} style={{ zIndex: 10000 }}>
+          <div className="modal-content" style={{ maxWidth: '600px', textAlign: 'center', background: 'transparent', boxShadow: 'none', padding: '0' }} onClick={e => e.stopPropagation()}>
+            <img src={previewImage} alt="Foto del Dispositivo" style={{ maxWidth: '100%', maxHeight: '75vh', borderRadius: '16px', border: '4px solid white', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} />
+            <div style={{ marginTop: '16px' }}>
+              <button className="btn-primary" style={{ margin: '0 auto' }} onClick={() => setPreviewImage(null)}>Cerrar Foto</button>
             </div>
           </div>
         </div>
