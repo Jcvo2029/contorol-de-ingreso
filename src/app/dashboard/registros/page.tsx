@@ -44,6 +44,31 @@ interface Persona {
   company?: string;
 }
 
+interface GroupedMovement {
+  id: string;
+  idNumber: string;
+  employeeName: string;
+  visitorType: 'Empleado' | 'Proveedor/Cliente';
+  inChargeEmployee?: string;
+  area: string;
+  assetCode: string;
+  serialNumber: string;
+  equipmentType: string;
+  brandModel: string;
+  ownership: string;
+  equipmentState: string;
+  entryTimestamp?: any;
+  entryReason?: string;
+  entryNotes?: string;
+  entryBy?: string;
+  exitTimestamp?: any;
+  exitReason?: string;
+  exitNotes?: string;
+  exitBy?: string;
+  isCurrentlyInside: boolean;
+  rawEntryRecord?: Registry;
+}
+
 export default function RegistrosPage() {
   const [registries, setRegistries] = useState<Registry[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
@@ -93,8 +118,8 @@ export default function RegistrosPage() {
       setCurrentUser(JSON.parse(storedUser));
     }
 
-    // Subscribe to registries
-    const qReg = query(collection(db, 'registros'), orderBy('timestamp', 'desc'), limit(50));
+    // Subscribe to registries (limit 150 for grouping)
+    const qReg = query(collection(db, 'registros'), orderBy('timestamp', 'desc'), limit(150));
     const unsubReg = onSnapshot(qReg, (snapshot) => {
       const registryData: Registry[] = [];
       snapshot.forEach((doc) => {
@@ -132,6 +157,103 @@ export default function RegistrosPage() {
       }
     };
   }, []);
+
+  const getGroupedMovements = (rawRegistries: Registry[]): GroupedMovement[] => {
+    const sorted = [...rawRegistries].sort((a, b) => {
+      const timeA = a.timestamp?.seconds || (a.timestamp?.toDate ? a.timestamp.toDate().getTime() / 1000 : 0);
+      const timeB = b.timestamp?.seconds || (b.timestamp?.toDate ? b.timestamp.toDate().getTime() / 1000 : 0);
+      return timeA - timeB;
+    });
+
+    const activeMap = new Map<string, GroupedMovement>();
+    const completedList: GroupedMovement[] = [];
+
+    for (const reg of sorted) {
+      const key = (reg.serialNumber && reg.serialNumber.trim() !== '') 
+        ? reg.serialNumber.toLowerCase() 
+        : (reg.assetCode && reg.assetCode.trim() !== '') 
+          ? reg.assetCode.toLowerCase() 
+          : `${reg.idNumber}-${reg.equipmentType}`;
+
+      if (reg.type === 'Entrada') {
+        if (activeMap.has(key)) {
+          completedList.push(activeMap.get(key)!);
+        }
+
+        const newGroup: GroupedMovement = {
+          id: reg.id,
+          idNumber: reg.idNumber,
+          employeeName: reg.employeeName,
+          visitorType: reg.visitorType,
+          inChargeEmployee: reg.inChargeEmployee,
+          area: reg.area,
+          assetCode: reg.assetCode,
+          serialNumber: reg.serialNumber,
+          equipmentType: reg.equipmentType,
+          brandModel: reg.brandModel,
+          ownership: reg.ownership,
+          equipmentState: reg.equipmentState,
+          entryTimestamp: reg.timestamp,
+          entryReason: reg.reason,
+          entryNotes: reg.notes,
+          entryBy: reg.registeredBy,
+          isCurrentlyInside: true,
+          rawEntryRecord: reg
+        };
+        activeMap.set(key, newGroup);
+
+      } else if (reg.type === 'Salida') {
+        if (activeMap.has(key)) {
+          const group = activeMap.get(key)!;
+          group.exitTimestamp = reg.timestamp;
+          group.exitReason = reg.reason;
+          group.exitNotes = reg.notes;
+          group.exitBy = reg.registeredBy;
+          group.isCurrentlyInside = false;
+
+          completedList.push(group);
+          activeMap.delete(key);
+        } else {
+          completedList.push({
+            id: reg.id,
+            idNumber: reg.idNumber,
+            employeeName: reg.employeeName,
+            visitorType: reg.visitorType,
+            inChargeEmployee: reg.inChargeEmployee,
+            area: reg.area,
+            assetCode: reg.assetCode,
+            serialNumber: reg.serialNumber,
+            equipmentType: reg.equipmentType,
+            brandModel: reg.brandModel,
+            ownership: reg.ownership,
+            equipmentState: reg.equipmentState,
+            exitTimestamp: reg.timestamp,
+            exitReason: reg.reason,
+            exitNotes: reg.notes,
+            exitBy: reg.registeredBy,
+            isCurrentlyInside: false,
+            rawEntryRecord: reg
+          });
+        }
+      }
+    }
+
+    for (const group of activeMap.values()) {
+      completedList.push(group);
+    }
+
+    return completedList.sort((a, b) => {
+      const timeA = Math.max(
+        a.exitTimestamp?.seconds || (a.exitTimestamp?.toDate ? a.exitTimestamp.toDate().getTime() / 1000 : 0),
+        a.entryTimestamp?.seconds || (a.entryTimestamp?.toDate ? a.entryTimestamp.toDate().getTime() / 1000 : 0)
+      );
+      const timeB = Math.max(
+        b.exitTimestamp?.seconds || (b.exitTimestamp?.toDate ? b.exitTimestamp.toDate().getTime() / 1000 : 0),
+        b.entryTimestamp?.seconds || (b.entryTimestamp?.toDate ? b.entryTimestamp.toDate().getTime() / 1000 : 0)
+      );
+      return timeB - timeA;
+    });
+  };
 
   // Autofill logic via ID Number (Person)
   const handleIdNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -209,7 +331,6 @@ export default function RegistrosPage() {
     stopScanner();
 
     if (scannerContext === 'checkout' && checkoutTarget) {
-      // In checkout context: verify scanned QR against target assetCode, serialNumber or idNumber
       const matchesAsset = checkoutTarget.assetCode.toLowerCase() === decodedText.toLowerCase();
       const matchesSerial = checkoutTarget.serialNumber.toLowerCase() === decodedText.toLowerCase();
       const matchesId = checkoutTarget.idNumber.toLowerCase() === decodedText.toLowerCase();
@@ -223,7 +344,6 @@ export default function RegistrosPage() {
       return;
     }
 
-    // In form context: set asset code and autofill details
     setAssetCode(decodedText);
     const found = equipments.find(eq => eq.assetCode.toLowerCase() === decodedText.toLowerCase());
     if (found) {
@@ -372,15 +492,17 @@ export default function RegistrosPage() {
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return '...';
-    const date = timestamp.toDate();
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   };
 
   const formatTime = (timestamp: any) => {
     if (!timestamp) return '...';
-    const date = timestamp.toDate();
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
     return date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
   };
+
+  const groupedMovements = getGroupedMovements(registries);
 
   return (
     <div className="registros-container">
@@ -752,7 +874,7 @@ export default function RegistrosPage() {
 
       {/* Movements Table */}
       <div className="registry-list-card">
-        <h2><i className="fa-solid fa-list-check"></i> Últimos Movimientos</h2>
+        <h2><i className="fa-solid fa-list-check"></i> Historial de Visitas y Movimientos</h2>
         
         <div className="table-responsive">
           <table className="registry-table">
@@ -760,68 +882,102 @@ export default function RegistrosPage() {
               <tr>
                 <th>Persona / Responsable</th>
                 <th>Equipo / Código</th>
-                <th>Tipo / Motivo</th>
-                <th>Fecha / Hora</th>
-                <th>Detalles</th>
+                <th>Ingreso (Entrada)</th>
+                <th>Salida</th>
+                <th>Estado Visita</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              {registries.length === 0 ? (
+              {groupedMovements.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="empty-state">
                     No hay registros de entradas o salidas el día de hoy.
                   </td>
                 </tr>
               ) : (
-                registries.map((reg) => (
-                  <tr key={reg.id}>
+                groupedMovements.map((group) => (
+                  <tr key={group.id}>
                     <td>
-                      <strong>{reg.employeeName}</strong>
-                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>ID: {reg.idNumber}</div>
-                      <div style={{ fontSize: '12px', color: reg.visitorType === 'Empleado' ? '#059669' : '#d97706', fontWeight: '600' }}>
-                        {reg.visitorType}
+                      <strong>{group.employeeName}</strong>
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>ID: {group.idNumber}</div>
+                      <div style={{ fontSize: '12px', color: group.visitorType === 'Empleado' ? '#059669' : '#d97706', fontWeight: '600' }}>
+                        {group.visitorType}
                       </div>
-                      {reg.inChargeEmployee && <div style={{ fontSize: '11px', color: '#6b7280' }}>A cargo: {reg.inChargeEmployee}</div>}
-                      {reg.area && <div style={{ fontSize: '11px', color: '#6b7280' }}>{reg.area}</div>}
+                      {group.inChargeEmployee && <div style={{ fontSize: '11px', color: '#6b7280' }}>A cargo: {group.inChargeEmployee}</div>}
+                      {group.area && <div style={{ fontSize: '11px', color: '#6b7280' }}>{group.area}</div>}
                     </td>
                     <td>
-                      <div>{reg.equipmentType} - {reg.brandModel}</div>
+                      <div>{group.equipmentType} - {group.brandModel}</div>
                       <div style={{ marginTop: '4px' }}>
-                        <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>Activo: {reg.assetCode}</span>
-                        <span style={{ fontSize: '11px', background: '#f3f4f6', color: '#4b5563', padding: '2px 6px', borderRadius: '4px' }}>SN: {reg.serialNumber}</span>
+                        <span style={{ fontSize: '11px', background: '#e0e7ff', color: '#3730a3', padding: '2px 6px', borderRadius: '4px', marginRight: '6px' }}>Activo: {group.assetCode}</span>
+                        <span style={{ fontSize: '11px', background: '#f3f4f6', color: '#4b5563', padding: '2px 6px', borderRadius: '4px' }}>SN: {group.serialNumber}</span>
                       </div>
                     </td>
                     <td>
-                      <div>
-                        <span className={`badge ${reg.type.toLowerCase()}`}>
-                          {reg.type}
+                      {group.entryTimestamp ? (
+                        <>
+                          <div><strong>{formatDate(group.entryTimestamp)}</strong> {formatTime(group.entryTimestamp)}</div>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{group.entryReason}</div>
+                        </>
+                      ) : (
+                        <span style={{ color: '#9ca3af', fontStyle: 'italic' }}>-</span>
+                      )}
+                    </td>
+                    <td>
+                      {group.exitTimestamp ? (
+                        <>
+                          <div><strong>{formatDate(group.exitTimestamp)}</strong> {formatTime(group.exitTimestamp)}</div>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>{group.exitReason}</div>
+                        </>
+                      ) : (
+                        <span style={{ color: '#059669', fontStyle: 'italic', fontSize: '12px', fontWeight: '500' }}>Pendiente de salida</span>
+                      )}
+                    </td>
+                    <td>
+                      {group.isCurrentlyInside ? (
+                        <span className="badge entrada">Dentro</span>
+                      ) : (
+                        <span className="badge salida">Fuera</span>
+                      )}
+                    </td>
+                    <td>
+                      {group.isCurrentlyInside ? (
+                        <button 
+                          className="btn-quick-salida"
+                          onClick={() => {
+                            const target = group.rawEntryRecord || {
+                              id: group.id,
+                              idNumber: group.idNumber,
+                              employeeName: group.employeeName,
+                              visitorType: group.visitorType,
+                              inChargeEmployee: group.inChargeEmployee,
+                              area: group.area,
+                              assetCode: group.assetCode,
+                              serialNumber: group.serialNumber,
+                              equipmentType: group.equipmentType,
+                              brandModel: group.brandModel,
+                              ownership: group.ownership,
+                              equipmentState: group.equipmentState,
+                              reason: group.entryReason || '',
+                              type: 'Entrada',
+                              notes: '',
+                              timestamp: group.entryTimestamp,
+                              registeredBy: group.entryBy || ''
+                            };
+                            setCheckoutTarget(target as Registry);
+                            setCheckoutConfirmId('');
+                            setCheckoutReason('Salida de la empresa');
+                            setCheckoutNotes('');
+                          }}
+                        >
+                          <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
+                        </button>
+                      ) : (
+                        <span style={{ color: '#059669', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <i className="fa-solid fa-circle-check"></i> Salida Registrada
                         </span>
-                      </div>
-                      <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>{reg.reason}</div>
-                    </td>
-                    <td>
-                      <div>{formatDate(reg.timestamp)}</div>
-                      <div style={{ fontSize: '12px', color: '#6b7280' }}>{formatTime(reg.timestamp)}</div>
-                    </td>
-                    <td style={{ fontSize: '12px', color: '#4b5563', maxWidth: '200px' }}>
-                      <div style={{ marginBottom: '2px' }}><strong>Propiedad:</strong> {reg.ownership}</div>
-                      <div><strong>Estado:</strong> {reg.equipmentState}</div>
-                      {reg.notes && <div style={{ marginTop: '2px', fontStyle: 'italic' }}>"{reg.notes}"</div>}
-                      <div style={{ marginTop: '4px', color: '#9ca3af' }}>Por: {reg.registeredBy}</div>
-                    </td>
-                    <td>
-                      <button 
-                        className="btn-quick-salida"
-                        onClick={() => {
-                          setCheckoutTarget(reg);
-                          setCheckoutConfirmId('');
-                          setCheckoutReason('Salida de la empresa');
-                          setCheckoutNotes('');
-                        }}
-                      >
-                        <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
-                      </button>
+                      )}
                     </td>
                   </tr>
                 ))
@@ -833,4 +989,5 @@ export default function RegistrosPage() {
     </div>
   );
 }
+
 
