@@ -161,6 +161,13 @@ export default function Navbar() {
               >
                 <i className="fa-solid fa-clock-rotate-left"></i> Mis Registros
               </Link>
+              <Link 
+                href="/dashboard/equipos" 
+                className={isActive('/dashboard/equipos') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-server"></i> Equipos
+              </Link>
             </>
           )}
         </div>

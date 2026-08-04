@@ -154,6 +154,70 @@ export default function RegistrosPage() {
     }
   };
 
+  // Add Master Equipment modal state directly from Registros
+  const [showAddEquipModal, setShowAddEquipModal] = useState(false);
+  const [newEquipAssetCode, setNewEquipAssetCode] = useState('');
+  const [newEquipSerialNumber, setNewEquipSerialNumber] = useState('');
+  const [newEquipType, setNewEquipType] = useState('Portátil');
+  const [newEquipBrandModel, setNewEquipBrandModel] = useState('');
+  const [newEquipOwnership, setNewEquipOwnership] = useState('Propio de la empresa');
+  const [newEquipPhotoUrl, setNewEquipPhotoUrl] = useState('');
+  const [newEquipLoading, setNewEquipLoading] = useState(false);
+
+  const handleNewEquipPhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressed = await compressImage(file);
+        setNewEquipPhotoUrl(compressed);
+      } catch (err) {
+        console.error("Error al procesar la foto:", err);
+      }
+    }
+  };
+
+  const handleCreateMasterEquipment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEquipSerialNumber.trim() || !newEquipBrandModel.trim()) {
+      alert('Por favor complete Serial y Marca/Modelo del equipo.');
+      return;
+    }
+    setNewEquipLoading(true);
+    try {
+      let finalCode = newEquipAssetCode.trim() || `ACT-${Math.floor(100000 + Math.random() * 900000)}`;
+      await addDoc(collection(db, 'equipos'), {
+        assetCode: finalCode,
+        serialNumber: newEquipSerialNumber,
+        equipmentType: newEquipType,
+        brandModel: newEquipBrandModel,
+        ownership: newEquipOwnership,
+        photoUrl: newEquipPhotoUrl || '',
+        status: 'Dentro',
+        createdAt: serverTimestamp()
+      });
+
+      // Autofill into Registros form
+      setAssetCode(finalCode);
+      setSerialNumber(newEquipSerialNumber);
+      setEquipmentType(newEquipType);
+      setBrandModel(newEquipBrandModel);
+      setOwnership(newEquipOwnership);
+      if (newEquipPhotoUrl) setPhotoUrl(newEquipPhotoUrl);
+
+      setShowAddEquipModal(false);
+      setShowForm(true);
+      setNewEquipAssetCode('');
+      setNewEquipSerialNumber('');
+      setNewEquipBrandModel('');
+      setNewEquipPhotoUrl('');
+      alert(`✓ Equipo ${newEquipBrandModel} añadido con éxito al Inventario Maestro.`);
+    } catch (err: any) {
+      alert("Error al registrar equipo: " + err.message);
+    } finally {
+      setNewEquipLoading(false);
+    }
+  };
+
   // Quick Checkout modal state
   const [checkoutTarget, setCheckoutTarget] = useState<Registry | null>(null);
   const [checkoutConfirmId, setCheckoutConfirmId] = useState('');
@@ -700,19 +764,35 @@ export default function RegistrosPage() {
           </p>
         </div>
 
-        <button 
-          className="btn-toggle-form"
-          onClick={() => setShowForm(!showForm)}
-        >
-          <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
-          {showForm ? 'Ocultar Formulario' : 'Nuevo Registro / Ingreso'}
-        </button>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          <button 
+            className="btn-toggle-form"
+            style={{ background: '#059669', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)' }}
+            onClick={() => setShowAddEquipModal(true)}
+          >
+            <i className="fa-solid fa-server"></i>
+            + Registrar Equipo en Inventario
+          </button>
+
+          <button 
+            className="btn-toggle-form"
+            onClick={() => setShowForm(!showForm)}
+          >
+            <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
+            {showForm ? 'Ocultar Formulario' : 'Nuevo Registro / Ingreso'}
+          </button>
+        </div>
       </div>
 
       {/* Registration Form (Collapsible) */}
       {showForm && (
         <div className="registry-form-card">
           <h2><i className="fa-solid fa-laptop"></i> Formulario de Registro de Equipos</h2>
+          
+          <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: '10px', marginBottom: '16px', borderLeft: '4px solid #3b82f6', fontSize: '0.86rem', color: '#1e40af' }}>
+            <i className="fa-solid fa-circle-info" style={{ marginRight: '6px' }}></i>
+            <strong>Crear o Vincular Equipos:</strong> Si el serial ingresado ya existe, se autocompletará. Si es un equipo nuevo, al guardar la Entrada o Salida se registrará **automáticamente** en el Inventario Maestro.
+          </div>
           
           {/* Fila 0: Tipo de Visitante */}
           <div className="form-row" style={{ background: '#f3f4f6', padding: '16px', borderRadius: '12px', marginBottom: '20px' }}>
@@ -1108,6 +1188,110 @@ export default function RegistrosPage() {
             <div style={{ marginTop: '16px' }}>
               <button className="btn-toggle-form" style={{ margin: '0 auto' }} onClick={() => setPreviewImage(null)}>Cerrar Foto</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Direct Add Master Equipment Modal */}
+      {showAddEquipModal && (
+        <div className="scanner-modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="checkout-modal" style={{ maxWidth: '520px' }}>
+            <div className="checkout-modal-header">
+              <h3><i className="fa-solid fa-server" style={{ color: '#059669' }}></i> Añadir Equipo a Inventario</h3>
+              <button 
+                onClick={() => setShowAddEquipModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateMasterEquipment} style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginTop: '12px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Serial del Equipo *</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: SN-98765432" 
+                  value={newEquipSerialNumber}
+                  onChange={(e) => setNewEquipSerialNumber(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Marca y Modelo *</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: HP ProBook 450 G8" 
+                  value={newEquipBrandModel}
+                  onChange={(e) => setNewEquipBrandModel(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Código de Activo (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Auto-generado si queda vacío" 
+                    value={newEquipAssetCode}
+                    onChange={(e) => setNewEquipAssetCode(e.target.value)}
+                  />
+                </div>
+                <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                  <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Tipo de Equipo</label>
+                  <select value={newEquipType} onChange={(e) => setNewEquipType(e.target.value)}>
+                    <option value="Portátil">Portátil</option>
+                    <option value="PC Escritorio">PC Escritorio</option>
+                    <option value="Monitor">Monitor</option>
+                    <option value="Tablet">Tablet</option>
+                    <option value="Teclado/Mouse">Teclado / Mouse</option>
+                    <option value="Escáner/Impresora">Escáner / Impresora</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>Pertenencia</label>
+                <select value={newEquipOwnership} onChange={(e) => setNewEquipOwnership(e.target.value)}>
+                  <option value="Propio de la empresa">Propio de la empresa</option>
+                  <option value="Personal">Personal</option>
+                  <option value="Proveedor">Proveedor</option>
+                </select>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.85rem', fontWeight: 'bold' }}><i className="fa-solid fa-camera"></i> Foto del Dispositivo (Opcional)</label>
+                <input type="file" accept="image/*" capture="environment" onChange={handleNewEquipPhotoChange} />
+                {newEquipPhotoUrl && (
+                  <div style={{ marginTop: '8px', position: 'relative', width: '80px', height: '80px' }}>
+                    <img src={newEquipPhotoUrl} alt="Vista previa" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px', border: '2px solid #059669' }} />
+                    <button type="button" onClick={() => setNewEquipPhotoUrl('')} style={{ position: 'absolute', top: '-6px', right: '-6px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', fontSize: '11px' }}>✕</button>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <button 
+                  type="submit" 
+                  className="btn-entrada" 
+                  style={{ flex: 1, justifyContent: 'center', background: '#059669' }}
+                  disabled={newEquipLoading}
+                >
+                  {newEquipLoading ? 'Guardando...' : 'Guardar en Inventario Maestro'}
+                </button>
+                <button 
+                  type="button" 
+                  className="logout-btn" 
+                  style={{ flex: '0.4', justifyContent: 'center' }}
+                  onClick={() => setShowAddEquipModal(false)}
+                >
+                  Cancelar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
