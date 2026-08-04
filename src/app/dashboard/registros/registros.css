@@ -346,12 +346,20 @@
   color: #4b5563;
 }
 
-.checkout-info-row strong {
-  color: #1f2937;
+.registros-header-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px 32px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
 @media (max-width: 768px) {
-  .registry-form-card, .registry-list-card {
+  .registros-header-card, .registry-form-card, .registry-list-card {
     padding: 20px 14px;
     border-radius: 12px;
   }
@@ -378,5 +386,6 @@
     padding: 20px 16px;
   }
 }
+
 
 

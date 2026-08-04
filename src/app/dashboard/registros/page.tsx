@@ -623,13 +623,13 @@ export default function RegistrosPage() {
       )}
 
       {/* Action Header & Collapsible Form */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+      <div className="registros-header-card">
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.5rem', color: '#1f2937' }}>
-            <i className="fa-solid fa-clipboard-list" style={{ color: '#4f46e5', marginRight: '10px' }}></i>
+          <h2 style={{ margin: 0, fontSize: '1.4rem', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fa-solid fa-clipboard-list" style={{ color: '#4f46e5' }}></i>
             Control de Entradas y Salidas
           </h2>
-          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '0.9rem' }}>
+          <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '0.88rem' }}>
             Gestiona los registros e ingresos de equipos en las instalaciones.
           </p>
         </div>

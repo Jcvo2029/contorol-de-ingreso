@@ -583,6 +583,13 @@ body {
 }
 
 
+/* Main Content Layout */
+.main-content {
+    padding: 32px 24px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
 /* Responsive Desktop vs Mobile layout */
 @media (min-width: 769px) {
     .navbar {
@@ -658,17 +665,11 @@ body {
         text-align: left;
     }
     .main-content {
-        padding: 16px 12px;
+        padding: 20px 16px;
     }
 }
 
 /* Main Content Area */
-.main-content {
-    padding: 32px 24px;
-    max-width: 1200px;
-    margin: 0 auto;
-}
-
 .welcome-card {
     background: var(--white);
     border-radius: 16px;
@@ -686,4 +687,5 @@ body {
     margin: 0;
     color: var(--text-muted);
 }
+
 
