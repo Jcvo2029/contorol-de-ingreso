@@ -77,7 +77,7 @@ export default function Navbar() {
         <div className="nav-brand">
           <Link href="/dashboard">
             <Image 
-              src="/img/LOGO CONTEXSAS.png" 
+              src="/img/logo-contexsas.png" 
               alt="Contexsas Logo"
               width={160}
               height={50}

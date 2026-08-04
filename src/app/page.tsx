@@ -146,7 +146,7 @@ export default function LoginPage() {
         <div className="glass-panel">
           <div className="login-header">
             <Image 
-              src="/img/LOGO CONTEXSAS.png" 
+              src="/img/logo-contexsas.png" 
               alt="Contexsas Logo" 
               width={200} 
               height={60} 

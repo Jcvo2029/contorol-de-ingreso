@@ -199,3 +199,24 @@
     color: #6b7280;
     font-size: 14px;
 }
+
+@media (max-width: 768px) {
+    .equipos-card {
+        padding: 20px 14px;
+        border-radius: 12px;
+    }
+    .header-with-action {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 14px;
+    }
+    .btn-primary {
+        width: 100%;
+        justify-content: center;
+    }
+    .modal-content {
+        padding: 20px 16px;
+        width: 95%;
+    }
+}
+
