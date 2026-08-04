@@ -75,7 +75,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-header">
         <div className="nav-brand">
-          <Link href="/dashboard">
+          <Link href="/dashboard/registros">
             <Image 
               src="/img/logo-contexsas.png" 
               alt="Contexsas Logo"
@@ -100,14 +100,6 @@ export default function Navbar() {
 
       <div className={`nav-menu-content ${menuOpen ? 'open' : ''}`}>
         <div className="nav-links">
-          <Link 
-            href="/dashboard" 
-            className={isActive('/dashboard') ? 'active' : ''}
-            onClick={() => setMenuOpen(false)}
-          >
-            <i className="fa-solid fa-house"></i> Inicio
-          </Link>
-          
           {user.role === 'Admin' && (
             <>
               <Link 
