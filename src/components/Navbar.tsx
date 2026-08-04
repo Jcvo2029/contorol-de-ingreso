@@ -178,9 +178,10 @@ export default function Navbar() {
             <span className="user-name">{user.name}</span>
             <span className="user-role">{user.role}</span>
           </div>
-          <div className="avatar desktop-avatar">{user.name.charAt(0).toUpperCase()}</div>
-          <button onClick={handleLogout} className="logout-btn">
-            <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
+          <div className="avatar desktop-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+          <button onClick={handleLogout} className="logout-btn" title="Cerrar Sesión / Salir">
+            <i className="fa-solid fa-arrow-right-from-bracket"></i>
+            <span className="logout-text-mobile">Salir</span>
           </button>
         </div>
       </div>
