@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -15,7 +15,9 @@ interface User {
 
 export default function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
@@ -67,56 +69,122 @@ export default function Navbar() {
 
   if (!user) return null;
 
+  const isActive = (path: string) => pathname === path;
+
   return (
     <nav className="navbar">
-      <div className="nav-brand">
-        <Image 
-          src="/img/LOGO CONTEXSAS.png" 
-          alt="Contexsas Logo"
-          width={200}
-          height={60}
-          style={{ objectFit: 'contain' }}
-        />
-      </div>
-
-      <div className="nav-links">
-        <Link href="/dashboard" className="active"><i className="fa-solid fa-house"></i> Inicio</Link>
-        
-        {user.role === 'Admin' && (
-          <>
-            <Link href="/dashboard/personas"><i className="fa-solid fa-address-book"></i> Personas</Link>
-            <Link href="/dashboard/equipos"><i className="fa-solid fa-server"></i> Equipos</Link>
-            <Link href="/dashboard/registros"><i className="fa-solid fa-clock-rotate-left"></i> Registros</Link>
-            <Link href="#"><i className="fa-solid fa-gear"></i> Configuración</Link>
-          </>
-        )}
-
-        {user.role === 'Recepción' && (
-          <>
-            <Link href="/dashboard/registros"><i className="fa-solid fa-door-open"></i> Entradas / Salidas</Link>
-            <Link href="/dashboard/equipos"><i className="fa-solid fa-server"></i> Equipos</Link>
-            <Link href="/dashboard/personas"><i className="fa-solid fa-address-book"></i> Personas</Link>
-          </>
-        )}
-
-        {user.role === 'Empleado' && (
-          <>
-            <Link href="#"><i className="fa-solid fa-clock-rotate-left"></i> Mis Registros</Link>
-            <Link href="#"><i className="fa-regular fa-id-badge"></i> Mi Perfil</Link>
-          </>
-        )}
-      </div>
-
-      <div className="user-profile">
-        <div className="user-info">
-          <span className="user-name">{user.name}</span>
-          <span className="user-role">{user.role}</span>
+      <div className="navbar-header">
+        <div className="nav-brand">
+          <Link href="/dashboard">
+            <Image 
+              src="/img/LOGO CONTEXSAS.png" 
+              alt="Contexsas Logo"
+              width={160}
+              height={50}
+              style={{ objectFit: 'contain' }}
+            />
+          </Link>
         </div>
-        <div className="avatar">{user.name.charAt(0).toUpperCase()}</div>
-        <a href="#" onClick={handleLogout} className="logout-btn">
-          <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
-        </a>
+
+        <div className="mobile-header-right">
+          <div className="avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+          <button 
+            className="mobile-menu-toggle"
+            aria-label="Abrir menú"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <i className={`fa-solid ${menuOpen ? 'fa-xmark' : 'fa-bars'}`}></i>
+          </button>
+        </div>
+      </div>
+
+      <div className={`nav-menu-content ${menuOpen ? 'open' : ''}`}>
+        <div className="nav-links">
+          <Link 
+            href="/dashboard" 
+            className={isActive('/dashboard') ? 'active' : ''}
+            onClick={() => setMenuOpen(false)}
+          >
+            <i className="fa-solid fa-house"></i> Inicio
+          </Link>
+          
+          {user.role === 'Admin' && (
+            <>
+              <Link 
+                href="/dashboard/personas" 
+                className={isActive('/dashboard/personas') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-address-book"></i> Personas
+              </Link>
+              <Link 
+                href="/dashboard/equipos" 
+                className={isActive('/dashboard/equipos') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-server"></i> Equipos
+              </Link>
+              <Link 
+                href="/dashboard/registros" 
+                className={isActive('/dashboard/registros') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-clock-rotate-left"></i> Registros
+              </Link>
+            </>
+          )}
+
+          {user.role === 'Recepción' && (
+            <>
+              <Link 
+                href="/dashboard/registros" 
+                className={isActive('/dashboard/registros') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-door-open"></i> Entradas / Salidas
+              </Link>
+              <Link 
+                href="/dashboard/equipos" 
+                className={isActive('/dashboard/equipos') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-server"></i> Equipos
+              </Link>
+              <Link 
+                href="/dashboard/personas" 
+                className={isActive('/dashboard/personas') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-address-book"></i> Personas
+              </Link>
+            </>
+          )}
+
+          {user.role === 'Empleado' && (
+            <>
+              <Link 
+                href="/dashboard/registros" 
+                className={isActive('/dashboard/registros') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-clock-rotate-left"></i> Mis Registros
+              </Link>
+            </>
+          )}
+        </div>
+
+        <div className="user-profile">
+          <div className="user-info">
+            <span className="user-name">{user.name}</span>
+            <span className="user-role">{user.role}</span>
+          </div>
+          <div className="avatar desktop-avatar">{user.name.charAt(0).toUpperCase()}</div>
+          <button onClick={handleLogout} className="logout-btn">
+            <i className="fa-solid fa-arrow-right-from-bracket"></i> Salir
+          </button>
+        </div>
       </div>
     </nav>
   );
 }
+
