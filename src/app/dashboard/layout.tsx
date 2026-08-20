@@ -6,9 +6,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="dashboard-page-wrapper" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <Navbar />
-      <div style={{ flex: 1 }}>
+      <main className="main-content" style={{ flex: 1, width: '100%' }}>
         {children}
-      </div>
+      </main>
       <Footer />
     </div>
   );

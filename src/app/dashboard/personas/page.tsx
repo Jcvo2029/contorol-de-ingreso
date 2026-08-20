@@ -101,10 +101,7 @@ export default function PersonasPage() {
   return (
     <div className="personas-container">
       <div className="personas-header-card">
-        <div>
-          <h2><i className="fa-solid fa-address-book"></i> Directorio de Personas</h2>
-          <p>Empleados, proveedores y clientes frecuentes. Al registrar una persona aquí, el formulario de Entradas/Salidas se autocompletará con solo ingresar su cédula.</p>
-        </div>
+        <h2><i className="fa-solid fa-address-book"></i> Directorio de Personas</h2>
         <button className="btn-add-persona" onClick={() => setShowForm(!showForm)}>
           <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
           {showForm ? 'Cancelar' : 'Nueva Persona'}

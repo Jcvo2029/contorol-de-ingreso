@@ -135,15 +135,12 @@ export default function EquiposPage() {
   return (
     <div className="equipos-container">
       <div className="equipos-card">
-        <div className="header-with-action">
+        <div className="header-with-action" style={{ marginBottom: '24px' }}>
           <h2><i className="fa-solid fa-server"></i> Inventario de Equipos</h2>
           <button className="btn-primary" onClick={() => setShowAddModal(true)}>
             <i className="fa-solid fa-plus"></i> Nuevo Equipo
           </button>
         </div>
-        <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '14px' }}>
-          Base de datos maestra de ControlTech. Aquí puedes gestionar todos los activos tecnológicos, adjuntar fotografías, generar sus códigos QR y ver su estado actual.
-        </p>
         
         <div className="table-responsive">
           <table className="equipos-table">
