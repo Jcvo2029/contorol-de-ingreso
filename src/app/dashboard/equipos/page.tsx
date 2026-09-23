@@ -542,6 +542,8 @@ export default function EquiposPage() {
                     <option value="Officejet">Officejet</option>
                     <option value="Matricial">Matricial</option>
                     <option value="Ploter / Designjet">Ploter / Designjet</option>
+                    <option value="Marquillas">Marquillas</option>
+                    <option value="Etiquetas">Etiquetas</option>
                     <option value="Otra">Otra</option>
                   </select>
                 </div>
@@ -643,6 +645,8 @@ export default function EquiposPage() {
                     <option value="Officejet">Officejet</option>
                     <option value="Matricial">Matricial</option>
                     <option value="Ploter / Designjet">Ploter / Designjet</option>
+                    <option value="Marquillas">Marquillas</option>
+                    <option value="Etiquetas">Etiquetas</option>
                     <option value="Otra">Otra</option>
                   </select>
                 </div>
