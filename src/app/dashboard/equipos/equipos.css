@@ -4,48 +4,101 @@
     gap: 30px;
 }
 
-.equipos-card {
-    background: var(--white);
+.equipos-header-card {
+    background: white;
     border-radius: 16px;
-    padding: 32px;
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-}
-
-.equipos-card h2 {
-    margin-top: 0;
-    margin-bottom: 24px;
-    color: var(--text-dark);
-    font-size: 20px;
-}
-
-.header-with-action {
+    padding: 24px 32px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    gap: 16px;
+    flex-wrap: wrap;
 }
 
-.header-with-action h2 {
-    margin-bottom: 0;
+.equipos-header-card h2 {
+    margin: 0;
+    font-size: 1.35rem;
+    color: #1f2937;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.equipos-list-card {
+    background: white;
+    border-radius: 16px;
+    padding: 24px 32px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, var(--primary), var(--primary-light));
-    color: white;
+    background-color: var(--primary);
+    color: var(--bg-dark);
     border: none;
-    padding: 10px 20px;
-    border-radius: 8px;
+    padding: 12px 22px;
+    border-radius: 10px;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
+    white-space: nowrap;
     display: flex;
     align-items: center;
     gap: 8px;
-    transition: all 0.3s ease;
+    transition: background 0.2s, transform 0.2s;
 }
 
 .btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+}
+
+.actions-cell {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.btn-edit {
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-edit:hover {
+    background: #bae6fd;
+    color: #0c4a6e;
+    transform: translateY(-1px);
+}
+
+.btn-delete {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+    color: #7f1d1d;
+    transform: translateY(-1px);
 }
 
 /* Modal Styles */
@@ -130,22 +183,55 @@
 .equipos-table {
     width: 100%;
     border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.equipos-table thead tr {
+    background: #f9fafb;
 }
 
 .equipos-table th {
     text-align: left;
-    padding: 16px;
-    border-bottom: 2px solid #e5e7eb;
-    color: var(--dashboard-text-muted);
-    font-size: 14px;
-    font-weight: 600;
+    padding: 12px 16px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #6b7280;
+    border-bottom: 1px solid #e5e7eb;
 }
 
 .equipos-table td {
-    padding: 16px;
+    padding: 14px 16px;
     border-bottom: 1px solid #f3f4f6;
-    color: var(--text-dark);
-    font-size: 14px;
+    color: #374151;
+    vertical-align: middle;
+}
+
+.equipos-table tbody tr:hover {
+    background: #fafafa;
+}
+
+/* Search bar styles */
+.equipos-search-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 10px 16px;
+    margin-bottom: 20px;
+    color: #9ca3af;
+}
+
+.equipos-search-bar input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 0.95rem;
+    color: #1f2937;
+    flex: 1;
 }
 
 .btn-qr {
@@ -217,6 +303,100 @@
     .modal-content {
         padding: 20px 16px;
         width: 95%;
+    }
+}
+
+@media print {
+    @page {
+        margin: 0;
+        size: 3in 5in;
+    }
+    
+    /* Hide layout wrapper elements completely from print flow */
+    .navbar,
+    .footer,
+    footer,
+    .equipos-header-card,
+    .equipos-list-card,
+    .close-btn,
+    .modal-content h3,
+    .modal-content > div:last-child {
+        display: none !important;
+    }
+    
+    /* Reset html, body and wrappers to collapsable single-page content */
+    html, body, .dashboard-page-wrapper, .main-content, .equipos-container {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: white !important;
+        box-shadow: none !important;
+        border: none !important;
+    }
+    
+    /* Make the modal overlay static and act as the main document container */
+    .modal-overlay {
+        position: static !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 100% !important;
+        height: 100vh !important;
+        background: white !important;
+        padding: 0 !important;
+    }
+    
+    .modal-content {
+        box-shadow: none !important;
+        border: none !important;
+        background: white !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        height: 100% !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .qr-container {
+        border: none !important;
+        background: white !important;
+        padding: 10px !important;
+        margin: 0 !important;
+        width: 100% !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 12px !important;
+    }
+    
+    .qr-code {
+        padding: 0 !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        display: flex !important;
+        justify-content: center !important;
+        align-items: center !important;
+        width: 70% !important;
+        max-width: 2in !important;
+    }
+    
+    .qr-code svg {
+        width: 100% !important;
+        height: auto !important;
+    }
+    
+    .qr-info h4 {
+        margin: 0 !important;
+        font-size: 14pt !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 700 !important;
+        color: black !important;
+        text-align: center !important;
     }
 }
 

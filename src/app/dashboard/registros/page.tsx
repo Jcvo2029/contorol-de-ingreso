@@ -11,6 +11,7 @@ interface Registry {
   employeeName: string;
   visitorType: 'Empleado' | 'Proveedor/Cliente';
   inChargeEmployee?: string;
+  inChargeEmployeeId?: string;
   area: string;
   assetCode: string;
   serialNumber: string;
@@ -52,6 +53,7 @@ interface GroupedMovement {
   employeeName: string;
   visitorType: 'Empleado' | 'Proveedor/Cliente';
   inChargeEmployee?: string;
+  inChargeEmployeeId?: string;
   area: string;
   assetCode: string;
   serialNumber: string;
@@ -113,15 +115,25 @@ export default function RegistrosPage() {
   const [registries, setRegistries] = useState<Registry[]>([]);
   const [equipments, setEquipments] = useState<Equipment[]>([]);
   const [personas, setPersonas] = useState<Persona[]>([]);
+  const [search, setSearch] = useState('');
   
   // Form toggle state (collapsed by default)
   const [showForm, setShowForm] = useState(false);
+
+  const [movementType, setMovementType] = useState<'Entrada' | 'Salida'>('Entrada');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   // Person fields
   const [visitorType, setVisitorType] = useState<'Empleado' | 'Proveedor/Cliente'>('Empleado');
   const [idNumber, setIdNumber] = useState('');
   const [employeeName, setEmployeeName] = useState('');
   const [inChargeEmployee, setInChargeEmployee] = useState('');
+  const [inChargeEmployeeId, setInChargeEmployeeId] = useState('');
   const [area, setArea] = useState('');
   
   // Equipment fields
@@ -149,7 +161,7 @@ export default function RegistrosPage() {
         setPhotoUrl(compressed);
       } catch (err) {
         console.error("Error al procesar la foto:", err);
-        alert("No se pudo procesar la foto elegida.");
+        showToast("No se pudo procesar la foto elegida.", "error");
       }
     }
   };
@@ -179,7 +191,7 @@ export default function RegistrosPage() {
   const handleCreateMasterEquipment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEquipSerialNumber.trim() || !newEquipBrandModel.trim()) {
-      alert('Por favor complete Serial y Marca/Modelo del equipo.');
+      showToast('Por favor complete Serial y Marca/Modelo del equipo.', 'error');
       return;
     }
     setNewEquipLoading(true);
@@ -210,9 +222,9 @@ export default function RegistrosPage() {
       setNewEquipSerialNumber('');
       setNewEquipBrandModel('');
       setNewEquipPhotoUrl('');
-      alert(`✓ Equipo ${newEquipBrandModel} añadido con éxito al Inventario Maestro.`);
+      showToast(`Equipo ${newEquipBrandModel} añadido con éxito al Inventario Maestro.`, "success");
     } catch (err: any) {
-      alert("Error al registrar equipo: " + err.message);
+      showToast("Error al registrar equipo: " + err.message, "error");
     } finally {
       setNewEquipLoading(false);
     }
@@ -305,6 +317,7 @@ export default function RegistrosPage() {
           employeeName: reg.employeeName,
           visitorType: reg.visitorType,
           inChargeEmployee: reg.inChargeEmployee,
+          inChargeEmployeeId: reg.inChargeEmployeeId,
           area: reg.area,
           assetCode: reg.assetCode,
           serialNumber: reg.serialNumber,
@@ -343,6 +356,7 @@ export default function RegistrosPage() {
             employeeName: reg.employeeName,
             visitorType: reg.visitorType,
             inChargeEmployee: reg.inChargeEmployee,
+            inChargeEmployeeId: reg.inChargeEmployeeId,
             area: reg.area,
             assetCode: reg.assetCode,
             serialNumber: reg.serialNumber,
@@ -391,6 +405,37 @@ export default function RegistrosPage() {
     }
   };
 
+  const handleEmployeeNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setEmployeeName(val);
+    const found = personas.find(p => p.name.trim().toLowerCase() === val.trim().toLowerCase());
+    if (found) {
+      setIdNumber(found.idNumber);
+      setArea(found.area || found.company || '');
+      setVisitorType(found.visitorType || 'Empleado');
+    }
+  };
+
+  const handleInChargeEmployeeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const name = e.target.value;
+    setInChargeEmployee(name);
+    
+    const found = personas.find(p => p.name.trim().toLowerCase() === name.trim().toLowerCase() && p.visitorType === 'Empleado');
+    if (found) {
+      setInChargeEmployeeId(found.idNumber || '');
+    }
+  };
+
+  const handleInChargeEmployeeIdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const id = e.target.value;
+    setInChargeEmployeeId(id);
+    
+    const found = personas.find(p => p.idNumber.trim() === id.trim() && p.visitorType === 'Empleado');
+    if (found) {
+      setInChargeEmployee(found.name || '');
+    }
+  };
+
   // Autofill logic via Serial Number (Manual typing)
   const handleSerialNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const serial = e.target.value;
@@ -436,7 +481,7 @@ export default function RegistrosPage() {
         );
       } catch (err) {
         console.error("Error starting scanner:", err);
-        alert("No se pudo iniciar la cámara. Verifica los permisos de cámara en tu navegador.");
+        showToast("No se pudo iniciar la cámara. Verifica los permisos de cámara en tu navegador.", "error");
         setIsScanning(false);
       }
     };
@@ -462,9 +507,9 @@ export default function RegistrosPage() {
 
       if (matchesAsset || matchesSerial || matchesId) {
         setCheckoutConfirmId(checkoutTarget.idNumber);
-        alert(`✓ QR verificado con éxito: Equipo perteneciente a ${checkoutTarget.employeeName}`);
+        showToast(`QR verificado con éxito: Equipo de ${checkoutTarget.employeeName}`, "success");
       } else {
-        alert(`El QR escaneado (${decodedText}) no coincide con el equipo de ${checkoutTarget.employeeName}.`);
+        showToast(`El QR escaneado no coincide con el equipo de ${checkoutTarget.employeeName}.`, "error");
       }
       return;
     }
@@ -485,12 +530,12 @@ export default function RegistrosPage() {
 
   const handleRegister = async (type: 'Entrada' | 'Salida') => {
     if (!idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim()) {
-      alert('Por favor complete los campos obligatorios: Identificación, Responsable, Serial, Marca/Modelo y Motivo.');
+      showToast("Por favor complete los campos obligatorios.", "error");
       return;
     }
     
     if (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim()) {
-      alert('Al ser un Proveedor/Cliente, debe especificar quién es el Empleado a Cargo internamente.');
+      showToast("Por favor especifique el Empleado a Cargo.", "error");
       return;
     }
 
@@ -530,6 +575,7 @@ export default function RegistrosPage() {
         idNumber,
         employeeName,
         inChargeEmployee: visitorType === 'Proveedor/Cliente' ? inChargeEmployee : '',
+        inChargeEmployeeId: visitorType === 'Proveedor/Cliente' ? inChargeEmployeeId : '',
         area,
         assetCode: finalAssetCode,
         serialNumber,
@@ -550,6 +596,7 @@ export default function RegistrosPage() {
       setIdNumber('');
       setEmployeeName('');
       setInChargeEmployee('');
+      setInChargeEmployeeId('');
       setArea('');
       setAssetCode('');
       setSerialNumber('');
@@ -562,11 +609,10 @@ export default function RegistrosPage() {
       setPhotoUrl('');
       setShowForm(false);
 
-      alert(`✓ ${type} registrada correctamente para ${employeeName}.`);
-      
+      showToast(`${type} registrada correctamente para ${employeeName}.`, "success");
     } catch (error: any) {
       console.error("Error adding document: ", error);
-      alert('Hubo un error al guardar el registro: ' + error.message);
+      showToast("Error al guardar el registro: " + error.message, "error");
     } finally {
       setLoading(false);
     }
@@ -575,7 +621,7 @@ export default function RegistrosPage() {
   const handleQuickCheckout = async () => {
     if (!checkoutTarget) return;
     if (checkoutConfirmId.trim() !== checkoutTarget.idNumber.trim()) {
-      alert(`La cédula/ID ingresada (${checkoutConfirmId}) no coincide con la cédula del responsable (${checkoutTarget.idNumber}).`);
+      showToast("La cédula ingresada no coincide.", "error");
       return;
     }
 
@@ -596,6 +642,7 @@ export default function RegistrosPage() {
         idNumber: checkoutTarget.idNumber,
         employeeName: checkoutTarget.employeeName,
         inChargeEmployee: checkoutTarget.inChargeEmployee || '',
+        inChargeEmployeeId: checkoutTarget.inChargeEmployeeId || '',
         area: checkoutTarget.area || '',
         assetCode: checkoutTarget.assetCode || '',
         serialNumber: checkoutTarget.serialNumber || '',
@@ -611,10 +658,10 @@ export default function RegistrosPage() {
       });
 
       setCheckoutTarget(null);
-      alert(`✓ Salida de equipo registrada con éxito para ${checkoutTarget.employeeName}`);
+      showToast(`Salida de equipo registrada para ${checkoutTarget.employeeName}`, "success");
     } catch (err: any) {
       console.error("Error confirming checkout:", err);
-      alert("Error al registrar salida: " + err.message);
+      showToast("Error al registrar salida: " + err.message, "error");
     } finally {
       setCheckoutLoading(false);
     }
@@ -633,6 +680,24 @@ export default function RegistrosPage() {
   };
 
   const groupedMovements = getGroupedMovements(registries);
+  const filteredMovements = groupedMovements.filter(group =>
+    (group.employeeName || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.idNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.brandModel || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.assetCode || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.serialNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.area || '').toLowerCase().includes(search.toLowerCase()) ||
+    (group.visitorType || '').toLowerCase().includes(search.toLowerCase())
+  );
+  
+  const uniqueAreas = Array.from(new Set(
+    personas.map(p => p.visitorType === 'Empleado' ? p.area : p.company).filter(Boolean)
+  )) as string[];
+
+  const isExistingEquip = equipments.some(eq => 
+    (serialNumber && eq.serialNumber.trim().toLowerCase() === serialNumber.trim().toLowerCase()) || 
+    (assetCode && eq.assetCode.trim().toLowerCase() === assetCode.trim().toLowerCase())
+  );
 
   return (
     <div className="registros-container">
@@ -755,20 +820,11 @@ export default function RegistrosPage() {
       {/* Action Header & Collapsible Form */}
       <div className="registros-header-card">
         <h2>
-          <i className="fa-solid fa-clipboard-list" style={{ color: '#4f46e5' }}></i>
+          <i className="fa-solid fa-clock-rotate-left"></i>
           Control de Entradas y Salidas
         </h2>
 
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-          <button 
-            className="btn-toggle-form"
-            style={{ background: '#059669', boxShadow: '0 4px 12px rgba(5, 150, 105, 0.25)' }}
-            onClick={() => setShowAddEquipModal(true)}
-          >
-            <i className="fa-solid fa-server"></i>
-            + Registrar Equipo en Inventario
-          </button>
-
           <button 
             className="btn-toggle-form"
             onClick={() => setShowForm(!showForm)}
@@ -783,6 +839,24 @@ export default function RegistrosPage() {
       {showForm && (
         <div className="registry-form-card">
           <h2><i className="fa-solid fa-laptop"></i> Formulario de Registro de Equipos</h2>
+
+          {/* Selector de Tipo de Movimiento */}
+          <div className="movement-type-selector">
+            <div 
+              className={`movement-type-option ${movementType === 'Entrada' ? 'active entrada' : ''}`}
+              onClick={() => setMovementType('Entrada')}
+            >
+              <i className="fa-solid fa-arrow-right-to-bracket"></i>
+              Marcar Entrada / Ingreso
+            </div>
+            <div 
+              className={`movement-type-option ${movementType === 'Salida' ? 'active salida' : ''}`}
+              onClick={() => setMovementType('Salida')}
+            >
+              <i className="fa-solid fa-arrow-right-from-bracket"></i>
+              Marcar Salida / Egreso
+            </div>
+          </div>
           
           <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: '10px', marginBottom: '16px', borderLeft: '4px solid #3b82f6', fontSize: '0.86rem', color: '#1e40af' }}>
             <i className="fa-solid fa-circle-info" style={{ marginRight: '6px' }}></i>
@@ -829,7 +903,15 @@ export default function RegistrosPage() {
                 onChange={handleIdNumberChange}
                 disabled={loading}
                 style={{ borderColor: personas.find(p => p.idNumber === idNumber) ? '#4f46e5' : undefined }}
+                list="ids-list"
               />
+              <datalist id="ids-list">
+                {personas.map(p => (
+                  <option key={p.id} value={p.idNumber}>
+                    {p.name} ({p.visitorType === 'Empleado' ? p.area || 'Empleado' : p.company || 'Visitante'})
+                  </option>
+                ))}
+              </datalist>
             </div>
 
             <div className="form-group">
@@ -838,23 +920,18 @@ export default function RegistrosPage() {
                 type="text" 
                 placeholder="Ej: Juan Pérez" 
                 value={employeeName}
-                onChange={(e) => setEmployeeName(e.target.value)}
+                onChange={handleEmployeeNameChange}
                 disabled={loading}
+                list="names-list"
               />
+              <datalist id="names-list">
+                {personas.map(p => (
+                  <option key={p.id} value={p.name}>
+                    ID: {p.idNumber} - {p.visitorType === 'Empleado' ? p.area || 'Empleado' : p.company || 'Visitante'}
+                  </option>
+                ))}
+              </datalist>
             </div>
-            
-            {visitorType === 'Proveedor/Cliente' && (
-              <div className="form-group">
-                <label>Empleado a Cargo (Quien autoriza) *</label>
-                <input 
-                  type="text" 
-                  placeholder="Ej: Ing. Carlos Gómez" 
-                  value={inChargeEmployee}
-                  onChange={(e) => setInChargeEmployee(e.target.value)}
-                  disabled={loading}
-                />
-              </div>
-            )}
 
             <div className="form-group">
               <label>{visitorType === 'Empleado' ? 'Área / Departamento' : 'Empresa / Proveedor'}</label>
@@ -864,9 +941,58 @@ export default function RegistrosPage() {
                 value={area}
                 onChange={(e) => setArea(e.target.value)}
                 disabled={loading}
+                list="areas-list"
               />
+              <datalist id="areas-list">
+                {uniqueAreas.map(a => (
+                  <option key={a} value={a} />
+                ))}
+              </datalist>
             </div>
           </div>
+
+          {/* Fila Autorización (Solo si es Proveedor/Cliente) */}
+          {visitorType === 'Proveedor/Cliente' && (
+            <div className="form-row">
+              <div className="form-group">
+                <label>Empleado a Cargo (Quien autoriza) *</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: Ing. Carlos Gómez" 
+                  value={inChargeEmployee}
+                  onChange={handleInChargeEmployeeChange}
+                  disabled={loading}
+                  list="incharge-list"
+                />
+                <datalist id="incharge-list">
+                  {personas.filter(p => p.visitorType === 'Empleado').map(p => (
+                    <option key={p.id} value={p.name}>
+                      {p.area || 'Personal de Planta'}
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+
+              <div className="form-group" style={{ flex: '0.8' }}>
+                <label>Identificación de quien autoriza (CC/ID) *</label>
+                <input 
+                  type="text" 
+                  placeholder="Ej: 987654321" 
+                  value={inChargeEmployeeId}
+                  onChange={handleInChargeEmployeeIdChange}
+                  disabled={loading}
+                  list="incharge-ids-list"
+                />
+                <datalist id="incharge-ids-list">
+                  {personas.filter(p => p.visitorType === 'Empleado').map(p => (
+                    <option key={p.id} value={p.idNumber}>
+                      {p.name} ({p.area || 'Personal de Planta'})
+                    </option>
+                  ))}
+                </datalist>
+              </div>
+            </div>
+          )}
 
           {/* Action button to open Scanner */}
           <div style={{ marginBottom: '20px' }}>
@@ -904,8 +1030,8 @@ export default function RegistrosPage() {
               <select 
                 value={equipmentType}
                 onChange={(e) => setEquipmentType(e.target.value)}
-                disabled={loading}
-                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+                disabled={loading || isExistingEquip}
+                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: isExistingEquip ? '#f3f4f6' : '#f9fafb', cursor: isExistingEquip ? 'not-allowed' : 'default', outline: 'none', fontFamily: 'inherit' }}
               >
                 <option value="Portátil">Portátil</option>
                 <option value="PC Escritorio">PC Escritorio</option>
@@ -927,7 +1053,8 @@ export default function RegistrosPage() {
                 placeholder="Ej: Dell Latitude 5420" 
                 value={brandModel}
                 onChange={(e) => setBrandModel(e.target.value)}
-                disabled={loading}
+                disabled={loading || isExistingEquip}
+                style={{ background: isExistingEquip ? '#f3f4f6' : '#f9fafb', cursor: isExistingEquip ? 'not-allowed' : 'default' }}
               />
             </div>
 
@@ -936,8 +1063,8 @@ export default function RegistrosPage() {
               <select 
                 value={ownership}
                 onChange={(e) => setOwnership(e.target.value)}
-                disabled={loading}
-                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: '#f9fafb', outline: 'none', fontFamily: 'inherit' }}
+                disabled={loading || isExistingEquip}
+                style={{ padding: '12px 16px', border: '1px solid #e5e7eb', borderRadius: '8px', background: isExistingEquip ? '#f3f4f6' : '#f9fafb', cursor: isExistingEquip ? 'not-allowed' : 'default', outline: 'none', fontFamily: 'inherit' }}
               >
                 <option value="Propio de la empresa">Propio de la empresa</option>
                 <option value="Personal">Personal</option>
@@ -1016,21 +1143,25 @@ export default function RegistrosPage() {
           </div>
 
           <div className="form-actions">
-            <button 
-              className="btn-entrada" 
-              onClick={() => handleRegister('Entrada')}
-              disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
-            >
-              <i className="fa-solid fa-arrow-right-to-bracket"></i> Marcar Entrada
-            </button>
-            
-            <button 
-              className="btn-salida" 
-              onClick={() => handleRegister('Salida')}
-              disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
-            >
-              <i className="fa-solid fa-arrow-right-from-bracket"></i> Marcar Salida
-            </button>
+            {movementType === 'Entrada' ? (
+              <button 
+                className="btn-entrada" 
+                onClick={() => handleRegister('Entrada')}
+                disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <i className="fa-solid fa-arrow-right-to-bracket"></i> Confirmar Entrada / Ingreso
+              </button>
+            ) : (
+              <button 
+                className="btn-salida" 
+                onClick={() => handleRegister('Salida')}
+                disabled={loading || !idNumber.trim() || !employeeName.trim() || !brandModel.trim() || !serialNumber.trim() || !reason.trim() || (visitorType === 'Proveedor/Cliente' && !inChargeEmployee.trim())}
+                style={{ flex: 1, justifyContent: 'center' }}
+              >
+                <i className="fa-solid fa-arrow-right-from-bracket"></i> Confirmar Salida / Egreso
+              </button>
+            )}
             
             <button 
               type="button" 
@@ -1044,8 +1175,17 @@ export default function RegistrosPage() {
       )}
 
       {/* Movements Table */}
-      <div className="registry-list-card">
-        <h2><i className="fa-solid fa-list-check"></i> Historial de Visitas y Movimientos</h2>
+      <div className="registros-list-card">
+
+        <div className="registros-search-bar">
+          <i className="fa-solid fa-magnifying-glass"></i>
+          <input
+            type="text"
+            placeholder="Buscar por nombre, cédula, equipo o área..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
         
         <div className="table-responsive">
           <table className="registry-table">
@@ -1060,14 +1200,14 @@ export default function RegistrosPage() {
               </tr>
             </thead>
             <tbody>
-              {groupedMovements.length === 0 ? (
+              {filteredMovements.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="empty-state">
-                    No hay registros de entradas o salidas el día de hoy.
+                    {search ? 'No se encontraron coincidencias.' : 'No hay registros de entradas o salidas el día de hoy.'}
                   </td>
                 </tr>
               ) : (
-                groupedMovements.map((group) => (
+                filteredMovements.map((group) => (
                   <tr key={group.id}>
                     <td>
                       <strong>{group.employeeName}</strong>
@@ -1075,7 +1215,11 @@ export default function RegistrosPage() {
                       <div style={{ fontSize: '12px', color: group.visitorType === 'Empleado' ? '#059669' : '#d97706', fontWeight: '600' }}>
                         {group.visitorType}
                       </div>
-                      {group.inChargeEmployee && <div style={{ fontSize: '11px', color: '#6b7280' }}>A cargo: {group.inChargeEmployee}</div>}
+                      {group.inChargeEmployee && (
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                          A cargo: {group.inChargeEmployee} {group.inChargeEmployeeId ? `(ID: ${group.inChargeEmployeeId})` : ''}
+                        </div>
+                      )}
                       {group.area && <div style={{ fontSize: '11px', color: '#6b7280' }}>{group.area}</div>}
                     </td>
                     <td>
@@ -1288,6 +1432,13 @@ export default function RegistrosPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {toast && (
+        <div className={`toast-notification ${toast.type}`}>
+          <i className={toast.type === 'success' ? "fa-solid fa-circle-check" : "fa-solid fa-circle-xmark"}></i>
+          <span>{toast.message}</span>
         </div>
       )}
     </div>

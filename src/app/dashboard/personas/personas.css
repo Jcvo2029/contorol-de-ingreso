@@ -37,8 +37,8 @@
   align-items: center;
   gap: 8px;
   padding: 12px 22px;
-  background: #4f46e5;
-  color: white;
+  background-color: var(--primary);
+  color: var(--bg-dark);
   border: none;
   border-radius: 10px;
   font-size: 0.95rem;
@@ -47,7 +47,7 @@
   white-space: nowrap;
   transition: background 0.2s;
 }
-.btn-add-persona:hover { background: #4338ca; }
+.btn-add-persona:hover { background-color: var(--primary-hover); }
 
 .persona-form-card {
   background: white;
@@ -143,6 +143,10 @@
   color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+  min-height: 34px;
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 2px;
 }
 
 .form-group input {
@@ -179,5 +183,53 @@
     width: 100%;
     justify-content: center;
   }
+}
+
+.btn-edit {
+    background: #e0f2fe;
+    border: 1px solid #bae6fd;
+    color: #0369a1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-edit:hover {
+    background: #bae6fd;
+    color: #0c4a6e;
+    transform: translateY(-1px);
+}
+
+.btn-delete {
+    background: #fee2e2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-delete:hover {
+    background: #fecaca;
+    color: #7f1d1d;
+    transform: translateY(-1px);
+}
+
+.actions-cell {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 

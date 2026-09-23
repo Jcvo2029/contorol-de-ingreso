@@ -103,6 +103,13 @@ export default function Navbar() {
           {user.role === 'Admin' && (
             <>
               <Link 
+                href="/dashboard/usuarios" 
+                className={isActive('/dashboard/usuarios') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-users-gear"></i> Usuarios
+              </Link>
+              <Link 
                 href="/dashboard/personas" 
                 className={isActive('/dashboard/personas') ? 'active' : ''}
                 onClick={() => setMenuOpen(false)}
@@ -110,11 +117,25 @@ export default function Navbar() {
                 <i className="fa-solid fa-address-book"></i> Personas
               </Link>
               <Link 
+                href="/dashboard/areas" 
+                className={isActive('/dashboard/areas') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-building"></i> Áreas
+              </Link>
+              <Link 
                 href="/dashboard/equipos" 
                 className={isActive('/dashboard/equipos') ? 'active' : ''}
                 onClick={() => setMenuOpen(false)}
               >
                 <i className="fa-solid fa-server"></i> Equipos
+              </Link>
+              <Link 
+                href="/dashboard/asignaciones" 
+                className={isActive('/dashboard/asignaciones') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-people-carry-box"></i> Asignaciones
               </Link>
               <Link 
                 href="/dashboard/registros" 
@@ -141,6 +162,13 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
               >
                 <i className="fa-solid fa-server"></i> Equipos
+              </Link>
+              <Link 
+                href="/dashboard/asignaciones" 
+                className={isActive('/dashboard/asignaciones') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-people-carry-box"></i> Asignaciones
               </Link>
               <Link 
                 href="/dashboard/personas" 
@@ -173,11 +201,13 @@ export default function Navbar() {
         </div>
 
         <div className="user-profile">
-          <div className="user-info">
-            <span className="user-name">{user.name}</span>
-            <span className="user-role">{user.role}</span>
-          </div>
-          <div className="avatar desktop-avatar" title={user.name}>{user.name.charAt(0).toUpperCase()}</div>
+          <Link href="/dashboard/perfil" className="user-info" style={{ textDecoration: 'none', cursor: 'pointer' }} title="Editar Mi Perfil">
+            <span className="user-name" style={{ color: 'var(--primary, #eab308)' }}>{user.name}</span>
+            <span className="user-role" style={{ color: '#9ca3af' }}>{user.role}</span>
+          </Link>
+          <Link href="/dashboard/perfil" className="avatar desktop-avatar" title="Editar Mi Perfil" style={{ textDecoration: 'none' }}>
+            {user.name.charAt(0).toUpperCase()}
+          </Link>
           <button onClick={handleLogout} className="logout-btn" title="Cerrar Sesión / Salir">
             <i className="fa-solid fa-arrow-right-from-bracket"></i>
             <span className="logout-text-mobile">Salir</span>

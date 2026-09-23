@@ -42,27 +42,31 @@ export default function DashboardPage() {
         const storedUser = localStorage.getItem('user');
         let role = 'Empleado';
         let name = fbUser.email?.split('@')[0] || 'Usuario';
+        let cedula = '';
 
         if (storedUser) {
           const cached = JSON.parse(storedUser);
           role = cached.role || role;
           name = cached.name || name;
+          cedula = cached.cedula || '';
         }
 
-        const userDocRef = doc(db, 'users', fbUser.uid);
-        const userDoc = await getDoc(userDocRef);
-        
-        if (userDoc.exists()) {
-          const data = userDoc.data();
+        // Try getting from Firestore by email (because document ID might not be uid)
+        const qUsers = query(collection(db, 'users'), where('email', '==', fbUser.email));
+        const snapUsers = await getDocs(qUsers);
+        if (!snapUsers.empty) {
+          const data = snapUsers.docs[0].data();
           role = data.role || role;
           name = data.name || name;
+          cedula = data.cedula || cedula;
         }
 
         const sessionUser = {
           uid: fbUser.uid,
           name: name,
           role: role,
-          email: fbUser.email || ''
+          email: fbUser.email || '',
+          cedula: cedula
         };
 
         setUser(sessionUser);
@@ -105,10 +109,10 @@ export default function DashboardPage() {
       snapshot.forEach((docSnap) => {
         total++;
         const status = docSnap.data().status;
-        if (status === 'Dentro') {
-          dentro++;
-        } else {
+        if (status === 'Fuera') {
           fuera++;
+        } else {
+          dentro++;
         }
       });
       setMetrics((prev) => ({

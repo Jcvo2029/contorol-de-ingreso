@@ -2,6 +2,7 @@
     /* Logo colors */
     --primary: #CFE114; 
     --primary-hover: #b8c90f;
+    --primary-light: #e2f043;
     --secondary: #EB0072; 
     --bg-dark: #2F2D2E; 
     
@@ -586,7 +587,7 @@ body {
 /* Main Content Layout */
 .main-content {
     padding: 32px 24px;
-    max-width: 1200px;
+    max-width: 1600px;
     margin: 0 auto;
 }
 
