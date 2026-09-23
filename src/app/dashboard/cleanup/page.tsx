@@ -26,10 +26,10 @@ export default function CleanupPage() {
     setStatus([]);
     try {
       addStatus('Analizando base de datos de Personas...');
-      
+
       const qPers = query(collection(db, 'personas'));
       const persSnapshot = await getDocs(qPers);
-      
+
       const personas: PersonaData[] = persSnapshot.docs.map(d => ({
         id: d.id,
         name: d.data().name || '',
@@ -49,7 +49,7 @@ export default function CleanupPage() {
 
       // Agrupar por nombre (normalizado)
       const groups: Record<string, PersonaData[]> = {};
-      
+
       personas.forEach(p => {
         const nameKey = normalizeText(p.name);
         if (!groups[nameKey]) groups[nameKey] = [];
@@ -78,7 +78,7 @@ export default function CleanupPage() {
           // Recolectar todos los correos únicos
           const allEmails = new Set<string>();
           if (master.email) master.email.split(',').map(e => e.trim()).forEach(e => allEmails.add(e));
-          
+
           duplicates.forEach(d => {
             if (d.email) d.email.split(',').map(e => e.trim()).forEach(e => allEmails.add(e));
           });
@@ -113,12 +113,12 @@ export default function CleanupPage() {
           }
         }
       }
-      
+
       addStatus(`¡Limpieza completada exitosamente!`);
       addStatus(`- Perfiles actualizados/unificados: ${unificados}`);
       addStatus(`- Perfiles duplicados eliminados: ${eliminados}`);
       addStatus(`- Asignaciones reubicadas: ${asignacionesActualizadas}`);
-      
+
     } catch (error: any) {
       console.error(error);
       addStatus(`ERROR: ${error.message}`);
@@ -134,7 +134,7 @@ export default function CleanupPage() {
       addStatus('Analizando base de datos para corregir MAYÚSCULAS...');
       const qPers = query(collection(db, 'personas'));
       const persSnapshot = await getDocs(qPers);
-      
+
       const toTitleCase = (str: string) => {
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
       };
@@ -145,9 +145,9 @@ export default function CleanupPage() {
       for (const d of persSnapshot.docs) {
         const currentName = d.data().name || '';
         if (!currentName) continue;
-        
+
         const titleCaseName = toTitleCase(currentName.trim());
-        
+
         if (titleCaseName !== currentName) {
           // El nombre estaba mal escrito, actualizamos
           await updateDoc(doc(db, 'personas', d.id), {
@@ -166,7 +166,7 @@ export default function CleanupPage() {
           }
         }
       }
-      
+
       addStatus(`¡Nombres estandarizados exitosamente!`);
       addStatus(`- Personas corregidas a formato Título: ${actualizados}`);
       addStatus(`- Asignaciones actualizadas: ${asignacionesActualizadas}`);
@@ -185,7 +185,7 @@ export default function CleanupPage() {
       addStatus('Analizando base de datos para corregir MAYÚSCULAS en áreas...');
       const qPers = query(collection(db, 'personas'));
       const persSnapshot = await getDocs(qPers);
-      
+
       const toTitleCase = (str: string) => {
         return str.toLowerCase().split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
       };
@@ -195,9 +195,9 @@ export default function CleanupPage() {
       for (const d of persSnapshot.docs) {
         const currentArea = d.data().area || '';
         if (!currentArea) continue;
-        
+
         const titleCaseArea = toTitleCase(currentArea.trim());
-        
+
         if (titleCaseArea !== currentArea) {
           await updateDoc(doc(db, 'personas', d.id), {
             area: titleCaseArea
@@ -205,7 +205,7 @@ export default function CleanupPage() {
           actualizados++;
         }
       }
-      
+
       addStatus(`¡Áreas estandarizadas exitosamente!`);
       addStatus(`- Personas actualizadas a formato Título: ${actualizados}`);
     } catch (error: any) {
@@ -223,7 +223,7 @@ export default function CleanupPage() {
       addStatus('Buscando correos en perfiles de personas...');
       const qPers = query(collection(db, 'personas'));
       const persSnapshot = await getDocs(qPers);
-      
+
       let correosMigrados = 0;
 
       for (const d of persSnapshot.docs) {
@@ -257,7 +257,7 @@ export default function CleanupPage() {
           correosMigrados++;
         }
       }
-      
+
       addStatus(`¡Migración completada exitosamente!`);
       addStatus(`- Correos convertidos a equipos y asignados: ${correosMigrados}`);
       addStatus(`NOTA: Los correos originales se mantuvieron en los perfiles por seguridad.`);
@@ -286,9 +286,9 @@ export default function CleanupPage() {
           const firstSheetName = workbook.SheetNames[0];
           const worksheet = workbook.Sheets[firstSheetName];
           const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-          
+
           addStatus(`¡Excel leído! Encontradas ${json.length} filas. Procesando...`);
-          
+
           let actualizados = 0;
           let asignacionesCreadas = 0;
           let noEncontrados = 0;
@@ -310,18 +310,18 @@ export default function CleanupPage() {
             if (!rawName || rawName === 'N/A' || !licencia) continue;
 
             const titleCaseName = toTitleCase(rawName.trim());
-            
+
             // Find persona
             const personaMatch = allPersonas.find((p: any) => p.name === titleCaseName || p.name.toLowerCase() === rawName.trim().toLowerCase());
-            
+
             if (personaMatch) {
               const pId = personaMatch.id;
-              
+
               // 1. Update Persona Profile
               const updates: any = {};
               if (licencia) updates.office365License = licencia;
               if (email && email !== 'n/a') updates.office365Email = email; // Guardar como correo de O365, manteniendo el principal intacto
-              
+
               if (Object.keys(updates).length > 0) {
                 await updateDoc(doc(db, 'personas', pId), updates);
                 actualizados++;
@@ -356,7 +356,7 @@ export default function CleanupPage() {
               noEncontrados++;
             }
           }
-          
+
           addStatus(`¡Importación de licencias completada!`);
           addStatus(`- Perfiles de usuario actualizados: ${actualizados}`);
           addStatus(`- Licencias creadas y asignadas: ${asignacionesCreadas}`);
@@ -370,7 +370,7 @@ export default function CleanupPage() {
           e.target.value = '';
         }
       };
-      
+
       reader.readAsArrayBuffer(file);
     } catch (error: any) {
       console.error(error);
@@ -384,22 +384,22 @@ export default function CleanupPage() {
       <div style={{ background: 'white', padding: '30px', borderRadius: '10px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)' }}>
         <h2 style={{ marginBottom: '15px' }}><i className="fa-solid fa-broom"></i> Limpiador de Duplicados</h2>
         <p style={{ marginBottom: '25px', color: '#4b5563' }}>
-          Esta herramienta escaneará tu base de datos de Personas buscando perfiles con el mismo nombre. 
+          Esta herramienta escaneará tu base de datos de Personas buscando perfiles con el mismo nombre.
           Unificará todos los correos en un solo perfil maestro, reasignará los equipos si es necesario, y borrará los registros redundantes.
-          <br/><br/>
+          <br /><br />
           <strong>Esta operación no se puede deshacer.</strong>
         </p>
-        
+
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px' }}>
-          <button 
-            onClick={procesarLimpieza} 
+          <button
+            onClick={procesarLimpieza}
             disabled={loading}
-            style={{ 
-              padding: '12px 24px', 
-              background: loading ? '#9ca3af' : '#ef4444', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
+            style={{
+              padding: '12px 24px',
+              background: loading ? '#9ca3af' : '#ef4444',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold'
@@ -407,16 +407,16 @@ export default function CleanupPage() {
           >
             {loading ? 'Limpiando...' : 'Ejecutar Limpieza de Duplicados'}
           </button>
-          
-          <button 
-            onClick={estandarizarNombres} 
+
+          <button
+            onClick={estandarizarNombres}
             disabled={loading}
-            style={{ 
-              padding: '12px 24px', 
-              background: loading ? '#9ca3af' : '#10b981', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
+            style={{
+              padding: '12px 24px',
+              background: loading ? '#9ca3af' : '#10b981',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold'
@@ -425,15 +425,15 @@ export default function CleanupPage() {
             {loading ? 'Procesando...' : 'Estandarizar Nombres'}
           </button>
 
-          <button 
-            onClick={estandarizarAreas} 
+          <button
+            onClick={estandarizarAreas}
             disabled={loading}
-            style={{ 
-              padding: '12px 24px', 
-              background: loading ? '#9ca3af' : '#3b82f6', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
+            style={{
+              padding: '12px 24px',
+              background: loading ? '#9ca3af' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold'
@@ -444,15 +444,15 @@ export default function CleanupPage() {
         </div>
 
         <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', flexWrap: 'wrap' }}>
-          <button 
-            onClick={migrarCorreosAInventario} 
+          <button
+            onClick={migrarCorreosAInventario}
             disabled={loading}
-            style={{ 
-              padding: '12px 24px', 
-              background: loading ? '#9ca3af' : '#8b5cf6', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
+            style={{
+              padding: '12px 24px',
+              background: loading ? '#9ca3af' : '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold',
@@ -461,13 +461,13 @@ export default function CleanupPage() {
           >
             <i className="fa-solid fa-envelope"></i> {loading ? 'Migrando...' : 'Migrar Correos a Inventario'}
           </button>
-          
-          <label 
-            style={{ 
-              padding: '12px 24px', 
-              background: loading ? '#9ca3af' : '#0284c7', 
-              color: 'white', 
-              borderRadius: '8px', 
+
+          <label
+            style={{
+              padding: '12px 24px',
+              background: loading ? '#9ca3af' : '#0284c7',
+              color: 'white',
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               fontSize: '16px',
               fontWeight: 'bold',
@@ -477,12 +477,12 @@ export default function CleanupPage() {
             }}
           >
             <i className="fa-brands fa-microsoft"></i> {loading ? 'Importando...' : 'Importar Licencias Office 365'}
-            <input 
-              type="file" 
-              accept=".xlsx, .xls" 
-              onChange={importarLicenciasOffice} 
-              style={{ display: 'none' }} 
-              disabled={loading} 
+            <input
+              type="file"
+              accept=".xlsx, .xls"
+              onChange={importarLicenciasOffice}
+              style={{ display: 'none' }}
+              disabled={loading}
             />
           </label>
         </div>
@@ -497,7 +497,7 @@ export default function CleanupPage() {
             </ul>
           </div>
         )}
-        
+
         <div style={{ marginTop: '30px' }}>
           <Link href="/dashboard/personas" style={{ color: '#2563eb', textDecoration: 'none' }}>&larr; Volver a Personas</Link>
         </div>
