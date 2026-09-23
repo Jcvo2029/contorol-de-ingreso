@@ -10,6 +10,8 @@ interface Persona {
   area?: string;
   email?: string;
   phone?: string;
+  printerBrandModel?: string;
+  printerSerial?: string;
 }
 
 interface Asignacion {
@@ -79,12 +81,27 @@ export default function AreasPage() {
     }
   });
 
-  const areasList = Array.from(areasMap.entries()).map(([name, data]) => ({
-    name,
-    personasCount: data.personas.length,
-    equiposCount: data.equiposAsignados,
-    personas: data.personas
-  }));
+  const areasList = Array.from(areasMap.entries()).map(([name, data]) => {
+    const personaConImpresora = data.personas.find(p => p.printerBrandModel);
+    let equiposCount = data.equiposAsignados;
+    let printer = null;
+    
+    if (personaConImpresora && personaConImpresora.printerBrandModel) {
+      equiposCount++; // Contar la impresora compartida
+      printer = {
+        brandModel: personaConImpresora.printerBrandModel,
+        serial: personaConImpresora.printerSerial || 'N/A'
+      };
+    }
+
+    return {
+      name,
+      personasCount: data.personas.length,
+      equiposCount: equiposCount,
+      personas: data.personas,
+      printer
+    };
+  });
 
   const filteredAreas = areasList.filter(a => a.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -206,9 +223,21 @@ export default function AreasPage() {
               {/* Columna Equipos */}
               <div style={{ flex: 1 }}>
                 <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '8px', marginBottom: '12px', color: '#374151' }}>
-                  Inventario Activo ({modalAsignaciones.length})
+                  Inventario Activo ({modalAsignaciones.length + (modalData.printer ? 1 : 0)})
                 </h4>
                 <div style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
+                  
+                  {modalData.printer && (
+                    <div style={{ padding: '12px', background: '#fdf4ff', border: '1px solid #fbcfe8', borderRadius: '8px', marginBottom: '8px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#86198f' }}>IMPRESORA COMPARTIDA DE ÁREA</div>
+                      <div style={{ fontSize: '12px', color: '#d946ef', marginBottom: '4px' }}>{modalData.printer.brandModel}</div>
+                      <div style={{ fontSize: '12px', color: '#4b5563', background: 'white', padding: '4px 8px', borderRadius: '4px', display: 'inline-block' }}>
+                        <i className="fa-solid fa-print" style={{ marginRight: '5px' }}></i>
+                        S/N: {modalData.printer.serial}
+                      </div>
+                    </div>
+                  )}
+
                   {modalAsignaciones.map(a => {
                     const p = modalData.personas.find(x => x.id === a.personaId);
                     return (
@@ -222,7 +251,7 @@ export default function AreasPage() {
                       </div>
                     );
                   })}
-                  {modalAsignaciones.length === 0 && (
+                  {modalAsignaciones.length === 0 && !modalData.printer && (
                     <div style={{ color: '#9ca3af', fontSize: '14px', textAlign: 'center', marginTop: '20px' }}>
                       No hay equipos asignados en esta área.
                     </div>
