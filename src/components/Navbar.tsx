@@ -35,17 +35,23 @@ export default function Navbar() {
         let role = 'Empleado';
         let name = fbUser.email?.split('@')[0] || 'Usuario';
         
+        let cedula = '';
+        
         if (userDoc.exists()) {
           const data = userDoc.data();
           role = data.role || role;
           name = data.name || name;
+          cedula = data.cedula || cedula;
         }
 
         const sessionUser = {
           uid: fbUser.uid,
           name: name,
           role: role,
-          email: fbUser.email || ''
+          email: fbUser.email || '',
+          cedula: cedula || (storedUser ? JSON.parse(storedUser).cedula : ''),
+          idNumber: storedUser ? JSON.parse(storedUser).idNumber : '',
+          area: storedUser ? JSON.parse(storedUser).area : ''
         };
 
         setUser(sessionUser);
