@@ -21,6 +21,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [signingRole, setSigningRole] = useState<'colaborador' | 'entrega' | 'gerencia' | null>(null);
   const [signatureError, setSignatureError] = useState('');
   const [savingSignature, setSavingSignature] = useState(false);
   const sigCanvas = useRef<any>(null);
@@ -72,19 +73,25 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       setSignatureError('Por favor, dibuje su firma antes de guardar.');
       return;
     }
+    if (!signingRole) return;
+    
     setSignatureError('');
     setSavingSignature(true);
     
     try {
       const dataURL = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
       
+      const fieldName = signingRole === 'colaborador' ? 'firmaColaborador' : 
+                        signingRole === 'entrega' ? 'firmaEntrega' : 'firmaGerencia';
+      
       await updateDoc(doc(db, 'asignaciones', id), {
-        firmaColaborador: dataURL,
-        fechaFirma: serverTimestamp()
+        [fieldName]: dataURL,
+        [`fechaFirma_${signingRole}`]: serverTimestamp()
       });
       
-      setAsignacion({ ...asignacion, firmaColaborador: dataURL });
+      setAsignacion({ ...asignacion, [fieldName]: dataURL });
       setIsModalOpen(false);
+      setSigningRole(null);
     } catch (error) {
       console.error("Error guardando firma:", error);
       setSignatureError('Error al guardar la firma. Intente de nuevo.');
@@ -112,11 +119,23 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             <i className="fa-solid fa-print"></i> Imprimir Acta
           </button>
         </div>
-        {!asignacion.firmaColaborador && (
-          <button onClick={() => setIsModalOpen(true)} className="btn-firmar">
-            <i className="fa-solid fa-pen-nib"></i> Firmar Acta (Colaborador)
-          </button>
-        )}
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+          {!asignacion.firmaEntrega && (
+            <button onClick={() => { setSigningRole('entrega'); setIsModalOpen(true); }} className="btn-firmar">
+              <i className="fa-solid fa-pen-nib"></i> Firmar (Entrega)
+            </button>
+          )}
+          {!asignacion.firmaColaborador && (
+            <button onClick={() => { setSigningRole('colaborador'); setIsModalOpen(true); }} className="btn-firmar">
+              <i className="fa-solid fa-pen-nib"></i> Firmar (Colaborador)
+            </button>
+          )}
+          {!asignacion.firmaGerencia && (
+            <button onClick={() => { setSigningRole('gerencia'); setIsModalOpen(true); }} className="btn-firmar">
+              <i className="fa-solid fa-pen-nib"></i> Firmar (Gerencia)
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="acta-container">
@@ -264,7 +283,12 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
 
         <div className="acta-firmas">
           <div className="firma-box">
-            <div className="firma-line">
+            {asignacion.firmaEntrega && (
+              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+                <img src={asignacion.firmaEntrega} alt="Firma Entrega" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+              </div>
+            )}
+            <div className="firma-line" style={asignacion.firmaEntrega ? { marginTop: '5px' } : {}}>
               <p><strong>Entregado por:</strong></p>
               <p>{currentUser?.name || '___________________________'}</p>
               <p>C.C. {currentUser?.cedula || '___________'}</p>
@@ -283,7 +307,12 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             </div>
           </div>
           <div className="firma-box">
-            <div className="firma-line">
+            {asignacion.firmaGerencia && (
+              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+                <img src={asignacion.firmaGerencia} alt="Firma Gerencia" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+              </div>
+            )}
+            <div className="firma-line" style={asignacion.firmaGerencia ? { marginTop: '5px' } : {}}>
               <p><strong>Autorizado por:</strong></p>
               <p>Joussette Abudinen</p>
               <p>Gerencia</p>
@@ -296,7 +325,10 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       {isModalOpen && (
         <div className="modal-overlay">
           <div className="modal-content signature-modal">
-            <h3>Firma del Colaborador</h3>
+            <h3>
+              {signingRole === 'colaborador' ? 'Firma del Colaborador' : 
+               signingRole === 'entrega' ? 'Firma de Entrega' : 'Firma de Gerencia'}
+            </h3>
             <p style={{ marginBottom: '15px', color: '#4b5563', fontSize: '0.9rem' }}>Por favor, firme en el recuadro blanco usando su dedo o el mouse.</p>
             
             <div className="signature-container">
