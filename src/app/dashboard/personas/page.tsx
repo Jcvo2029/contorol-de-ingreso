@@ -378,6 +378,7 @@ export default function PersonasPage() {
                       <option value="OFFICE 365 STANDARD">Office 365 Standard</option>
                       <option value="OFFICE 365 PREMIUM">Office 365 Premium</option>
                       <option value="BASIC 2007">Basic 2007</option>
+                      <option value="OFFICE 365 BASIC + BASIC 2007">Office 365 Basic + Basic 2007</option>
                       <option value="OTRA">Otra (Especificar)</option>
                     </select>
                   </div>
