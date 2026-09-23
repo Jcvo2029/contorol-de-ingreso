@@ -24,10 +24,10 @@
 }
 
 .acta-container {
-  max-width: 800px;
-  margin: 20px auto;
+  max-width: 900px;
+  margin: 30px auto;
   background: white;
-  padding: 40px;
+  padding: 70px 80px;
   border-radius: 8px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.1);
   color: #1f2937;
