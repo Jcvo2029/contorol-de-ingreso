@@ -172,12 +172,15 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             />
           </div>
           <div className="acta-header-info">
-            <p><strong>Fecha:</strong> {formatDate(asignacion.fechaAsignacion)}</p>
+            <p><strong>Fecha Asignación:</strong> {formatDate(asignacion.fechaAsignacion)}</p>
+            {asignacion.estado === 'Devuelto' && asignacion.fechaDevolucion && (
+              <p style={{ marginTop: '5px' }}><strong>Fecha Devolución:</strong> {formatDate(asignacion.fechaDevolucion)}</p>
+            )}
           </div>
         </div>
 
         <div className="acta-title">
-          <h1>ACTA DE ENTREGA Y COMPROMISO DE EQUIPO</h1>
+          <h1>{asignacion.estado === 'Devuelto' ? 'ACTA DE DEVOLUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA Y COMPROMISO DE EQUIPO'}</h1>
         </div>
 
         <div className="acta-section">
