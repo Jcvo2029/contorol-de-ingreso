@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { updateProfile, updatePassword } from 'firebase/auth';
-import { doc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, updateDoc, collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import './perfil.css';
 
@@ -55,9 +55,17 @@ export default function PerfilPage() {
             name: name.trim(),
             cedula: cedula.trim()
           });
+        } else {
+          await addDoc(collection(db, 'users'), {
+            email: user.email,
+            name: name.trim(),
+            cedula: cedula.trim(),
+            role: 'Empleado',
+            createdAt: serverTimestamp()
+          });
         }
       } catch (e) {
-        console.log('User document not found in Firestore, skipping Firestore update');
+        console.error('Error updating Firestore user doc:', e);
       }
 
       // Update local storage
