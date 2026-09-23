@@ -377,7 +377,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         {/* Observaciones de Entrega */}
         {(asignacion.observaciones || viewMode === 'entrega' || asignacion.estado !== 'Devuelto') && (
           <div className="acta-section">
-            <h3>Observaciones del Estado de Entrega</h3>
+            <h3>Especificaciones Técnicas y Observaciones</h3>
             {asignacion.observaciones ? (
               <div style={{ marginTop: '5px' }}>
                 <p>{asignacion.observaciones}</p>
@@ -460,7 +460,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           ) : (
             <>
               <p>
-                Hago constar la recepción del equipo y herramientas tecnológicas descritas, asignados en buen estado (salvo observaciones) para uso exclusivo como <strong>herramienta de trabajo</strong>.
+                Hago constar la recepción del equipo y herramientas tecnológicas descritas, asignados en buen estado y en las condiciones indicadas, para uso exclusivo como <strong>herramienta de trabajo</strong>.
               </p>
               <br />
               <p><strong>Me comprometo a:</strong></p>
