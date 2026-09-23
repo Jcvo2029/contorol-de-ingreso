@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { updateProfile } from 'firebase/auth';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import './perfil.css';
 
@@ -71,6 +71,30 @@ export default function PerfilPage() {
       // Update displayName in Firebase Auth
       if (name.trim()) {
         await updateProfile(user, { displayName: name.trim() });
+      }
+
+      // Update name and cedula in Firestore users collection for non-linked users
+      if (!linkedPersona) {
+        try {
+          const q = query(collection(db, 'users'), where('email', '==', user.email));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            await updateDoc(doc(db, 'users', snap.docs[0].id), {
+              name: name.trim(),
+              cedula: cedula.trim()
+            });
+          } else {
+            await addDoc(collection(db, 'users'), {
+              email: user.email,
+              name: name.trim(),
+              cedula: cedula.trim(),
+              role: 'Empleado',
+              createdAt: serverTimestamp()
+            });
+          }
+        } catch (e) {
+          console.error('Error updating Firestore user doc:', e);
+        }
       }
 
       // Update local storage
