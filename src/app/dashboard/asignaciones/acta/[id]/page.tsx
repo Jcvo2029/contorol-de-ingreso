@@ -460,18 +460,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           ) : (
             <>
               <p>
-                Por medio del presente documento, hago constar que he recibido por parte de la empresa el equipo informático 
-                y las herramientas tecnológicas descritas anteriormente, los cuales me son asignados en perfectas condiciones de 
-                funcionamiento (salvo las observaciones especificadas) y estrictamente para uso como <strong>herramienta de trabajo</strong> 
-                en el cumplimiento de mis labores asignadas.
+                Hago constar la recepción del equipo y herramientas tecnológicas descritas, asignados en buen estado (salvo observaciones) para uso exclusivo como <strong>herramienta de trabajo</strong>.
               </p>
               <br />
               <p><strong>Me comprometo a:</strong></p>
               <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
-                <li>Darle un uso adecuado y exclusivo para actividades relacionadas con la empresa.</li>
-                <li>No instalar software pirata, malicioso o no autorizado por el departamento de tecnología.</li>
-                <li>Responder económicamente por la pérdida, robo o daños ocasionados por el mal uso, negligencia o descuido del equipo.</li>
-                <li>Devolver el equipo inmediatamente al cese de mis funciones o cuando la empresa lo requiera, en las mismas condiciones en que fue entregado, salvo el deterioro por desgaste natural.</li>
+                <li>Darles un uso exclusivamente laboral y no instalar software no autorizado.</li>
+                <li>Asumir responsabilidad económica por pérdida, robo o daños por mal uso.</li>
+                <li>Devolverlos en las mismas condiciones al cese de mis funciones o requerimiento de la empresa.</li>
               </ul>
             </>
           )}
