@@ -105,6 +105,29 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     setSignatureError('');
   };
 
+  const handleDeleteSignature = async (role: 'colaborador' | 'entrega' | 'gerencia') => {
+    if (!confirm('¿Está seguro de que desea borrar esta firma?')) return;
+    
+    try {
+      const fieldName = role === 'colaborador' ? 'firmaColaborador' : 
+                        role === 'entrega' ? 'firmaEntrega' : 'firmaGerencia';
+      
+      const dateFieldName = `fechaFirma_${role}`;
+      
+      const updates = {
+        [fieldName]: null,
+        [dateFieldName]: null
+      };
+      
+      await updateDoc(doc(db, 'asignaciones', id), updates);
+      
+      setAsignacion({ ...asignacion, [fieldName]: null, [dateFieldName]: null });
+    } catch (error) {
+      console.error("Error borrando firma:", error);
+      alert('Error al borrar la firma.');
+    }
+  };
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando documento...</div>;
   if (!asignacion) return <div style={{ padding: '40px', textAlign: 'center' }}>No se encontró el acta de asignación.</div>;
 
@@ -284,8 +307,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         <div className="acta-firmas">
           <div className="firma-box">
             {asignacion.firmaEntrega && (
-              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '5px', position: 'relative' }}>
                 <img src={asignacion.firmaEntrega} alt="Firma Entrega" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+                <button onClick={() => handleDeleteSignature('entrega')} className="btn-delete-signature no-print" title="Borrar firma">
+                  <i className="fa-solid fa-trash"></i>
+                </button>
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaEntrega ? { marginTop: '5px' } : {}}>
@@ -296,8 +322,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
           <div className="firma-box">
             {asignacion.firmaColaborador && (
-              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '5px', position: 'relative' }}>
                 <img src={asignacion.firmaColaborador} alt="Firma Colaborador" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+                <button onClick={() => handleDeleteSignature('colaborador')} className="btn-delete-signature no-print" title="Borrar firma">
+                  <i className="fa-solid fa-trash"></i>
+                </button>
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaColaborador ? { marginTop: '5px' } : {}}>
@@ -308,8 +337,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
           <div className="firma-box">
             {asignacion.firmaGerencia && (
-              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+              <div style={{ textAlign: 'center', marginBottom: '5px', position: 'relative' }}>
                 <img src={asignacion.firmaGerencia} alt="Firma Gerencia" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+                <button onClick={() => handleDeleteSignature('gerencia')} className="btn-delete-signature no-print" title="Borrar firma">
+                  <i className="fa-solid fa-trash"></i>
+                </button>
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaGerencia ? { marginTop: '5px' } : {}}>

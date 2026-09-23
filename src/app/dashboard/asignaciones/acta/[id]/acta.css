@@ -323,3 +323,30 @@
     justify-content: center;
   }
 }
+
+.btn-delete-signature {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #ef4444;
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 25px;
+  height: 25px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12px;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.btn-delete-signature:hover {
+  opacity: 1;
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
