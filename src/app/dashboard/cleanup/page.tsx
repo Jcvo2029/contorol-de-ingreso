@@ -296,7 +296,7 @@ export default function CleanupPage() {
           // Cache all personas to minimize reads
           const qPers = query(collection(db, 'personas'));
           const persSnapshot = await getDocs(qPers);
-          const allPersonas = persSnapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+          const allPersonas = persSnapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
 
           const toTitleCase = (str: string) => {
             return str.toLowerCase().split(' ').map((word: string) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
