@@ -132,7 +132,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   if (!asignacion) return <div style={{ padding: '40px', textAlign: 'center' }}>No se encontró el acta de asignación.</div>;
 
   return (
-    <div style={{ padding: '20px' }}>
+    <div className="print-wrapper" style={{ padding: '20px' }}>
       <div className="acta-actions">
         <div style={{ display: 'flex', gap: '15px' }}>
           <Link href="/dashboard/asignaciones" className="btn-volver">

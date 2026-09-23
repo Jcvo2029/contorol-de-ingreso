@@ -21,6 +21,15 @@
   .btn-imprimir, .btn-volver {
     display: none !important;
   }
+  
+  .print-wrapper {
+    padding: 0 !important;
+  }
+}
+
+@page {
+  size: A4 portrait;
+  margin: 1.5cm;
 }
 
 .acta-container {
@@ -36,10 +45,11 @@
 
 @media print {
   .acta-container {
-    box-shadow: none;
-    margin: 0;
-    padding: 0;
-    max-width: 100%;
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
   }
 }
 
