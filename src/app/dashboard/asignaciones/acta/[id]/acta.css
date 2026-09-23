@@ -192,7 +192,7 @@
 }
 
 /* MOBILE RESPONSIVE STYLES */
-@media (max-width: 768px) {
+@media screen and (max-width: 768px) {
   .acta-container {
     padding: 20px;
     margin: 10px;
