@@ -30,6 +30,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [observacionesDevolucion, setObservacionesDevolucion] = useState('');
   const [savingObs, setSavingObs] = useState(false);
 
+  // Toggle between 'entrega' and 'devolucion' views when estado is Devuelto
+  const [viewMode, setViewMode] = useState<'entrega' | 'devolucion'>('devolucion');
+
   const handleOpenModal = async (role: 'colaborador' | 'entrega' | 'gerencia') => {
     setSigningRole(role);
     setIsModalOpen(true);
@@ -208,6 +211,34 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         </div>
       </div>
 
+      {/* Toggle view when devuelto */}
+      {asignacion.estado === 'Devuelto' && (
+        <div className="no-print" style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
+          <button
+            onClick={() => setViewMode('entrega')}
+            style={{
+              padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
+              background: viewMode === 'entrega' ? '#4f46e5' : 'white',
+              color: viewMode === 'entrega' ? 'white' : '#374151',
+              border: '1px solid #d1d5db'
+            }}
+          >
+            <i className="fa-solid fa-file-arrow-down"></i> Acta de Entrega Original
+          </button>
+          <button
+            onClick={() => setViewMode('devolucion')}
+            style={{
+              padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600',
+              background: viewMode === 'devolucion' ? '#10b981' : 'white',
+              color: viewMode === 'devolucion' ? 'white' : '#374151',
+              border: '1px solid #d1d5db'
+            }}
+          >
+            <i className="fa-solid fa-file-circle-check"></i> Acta de Devolución / Paz y Salvo
+          </button>
+        </div>
+      )}
+
       <div className="acta-container">
         <div className="acta-header">
           <div className="acta-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -220,14 +251,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
           <div className="acta-header-info">
             <p><strong>Fecha Asignación:</strong> {formatDate(asignacion.fechaAsignacion)}</p>
-            {asignacion.estado === 'Devuelto' && asignacion.fechaDevolucion && (
+            {viewMode === 'devolucion' && asignacion.estado === 'Devuelto' && asignacion.fechaDevolucion && (
               <p style={{ marginTop: '5px' }}><strong>Fecha Devolución:</strong> {formatDate(asignacion.fechaDevolucion)}</p>
             )}
           </div>
         </div>
 
         <div className="acta-title">
-          <h1>{asignacion.estado === 'Devuelto' ? 'ACTA DE DEVOLUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA Y COMPROMISO DE EQUIPO'}</h1>
+          <h1>{viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? 'ACTA DE DEVOLUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA Y COMPROMISO DE EQUIPO'}</h1>
         </div>
 
         <div className="acta-section">
@@ -336,7 +367,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         <div className="acta-legal-text">
-          {asignacion.estado === 'Devuelto' ? (
+          {viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? (
             <>
               <p>
                 Por medio del presente documento, <strong>{persona?.name || asignacion.personaName}</strong>, identificado(a) con 
@@ -410,7 +441,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaEntrega ? { marginTop: '5px' } : {}}>
-              <p><strong>{asignacion.estado === 'Devuelto' ? 'Recibido conforme por:' : 'Entregado por:'}</strong></p>
+              <p><strong>{viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? 'Recibido conforme por:' : 'Entregado por:'}</strong></p>
               <p>{currentUser?.name || '___________________________'}</p>
               <p>C.C. {currentUser?.cedula || '___________'}</p>
             </div>
@@ -425,7 +456,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaColaborador ? { marginTop: '5px' } : {}}>
-              <p><strong>{asignacion.estado === 'Devuelto' ? 'Entregado por el Colaborador:' : 'Recibido y Aceptado por:'}</strong></p>
+              <p><strong>{viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? 'Entregado por el Colaborador:' : 'Recibido y Aceptado por:'}</strong></p>
               <p>{persona?.name || asignacion.personaName}</p>
               <p>C.C. {persona?.idNumber || ''}</p>
             </div>
