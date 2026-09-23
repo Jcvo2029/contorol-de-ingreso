@@ -51,7 +51,7 @@ export default function DashboardPage() {
           cedula = cached.cedula || '';
         }
 
-        // Try getting from Firestore by email (because document ID might not be uid)
+        // Try getting from Firestore users collection by email
         const qUsers = query(collection(db, 'users'), where('email', '==', fbUser.email));
         const snapUsers = await getDocs(qUsers);
         if (!snapUsers.empty) {
@@ -61,34 +61,40 @@ export default function DashboardPage() {
           cedula = data.cedula || cedula;
         }
 
+        // Also look up in personas collection by email (takes priority for name/cedula)
+        let personaIdNumber = '';
+        let personaArea = '';
+        try {
+          if (fbUser.email) {
+            // Search by email exact match first, then by email containing (e.g. with [Inactivo] suffix)
+            const qPersona = query(collection(db, 'personas'), where('email', '==', fbUser.email));
+            const snapPersona = await getDocs(qPersona);
+            if (!snapPersona.empty) {
+              const personaData = snapPersona.docs[0].data();
+              // Persona data takes priority over users collection
+              name = personaData.name || name;
+              cedula = personaData.idNumber || cedula;
+              personaIdNumber = personaData.idNumber || '';
+              personaArea = personaData.area || '';
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching persona:', err);
+        }
+
         const sessionUser = {
           uid: fbUser.uid,
           name: name,
           role: role,
           email: fbUser.email || '',
-          cedula: cedula
+          cedula: cedula,
+          idNumber: personaIdNumber,
+          area: personaArea
         };
 
         setUser(sessionUser);
         localStorage.setItem('user', JSON.stringify(sessionUser));
-
-        try {
-          if (fbUser.email) {
-            const q = query(collection(db, 'personas'), where('email', '==', fbUser.email));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-              setEmployeeIdNumber(querySnapshot.docs[0].data().idNumber || '');
-            } else {
-              const qName = query(collection(db, 'personas'), where('name', '==', name));
-              const qSnapName = await getDocs(qName);
-              if (!qSnapName.empty) {
-                setEmployeeIdNumber(qSnapName.docs[0].data().idNumber || '');
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching persona:", err);
-        }
+        setEmployeeIdNumber(personaIdNumber);
       } else {
         localStorage.removeItem('user');
         setUser(null);
