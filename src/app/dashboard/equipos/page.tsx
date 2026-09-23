@@ -196,7 +196,7 @@ export default function EquiposPage() {
         mouse: mouse.trim(),
         unidadCD,
         parlantes,
-        tipoImpresora,
+        tipoImpresora: equipmentType === 'Impresora' ? tipoImpresora : null,
         ownership,
         photoUrl: photoUrl || '',
         status: 'Dentro',
@@ -291,7 +291,7 @@ export default function EquiposPage() {
         mouse: mouse.trim(),
         unidadCD,
         parlantes,
-        tipoImpresora,
+        tipoImpresora: equipmentType === 'Impresora' ? tipoImpresora : null,
         ownership,
         photoUrl: photoUrl || ''
       });
@@ -312,9 +312,7 @@ export default function EquiposPage() {
 
   const filtered = equipments.filter(equip => {
     const isImpresora = (equip.equipmentType || '').toUpperCase().includes('IMPRESORA') || 
-                        (equip.brandModel || '').toUpperCase().includes('IMPRESORA') || 
-                        (equip.technicalSpecs || '').toUpperCase().includes('IMPRESORA') ||
-                        (equip.tipoImpresora ? true : false);
+                        (equip.brandModel || '').toUpperCase().includes('IMPRESORA');
                         
     if (activeModule === 'Computadores' && isImpresora) return false;
     if (activeModule === 'Impresoras' && !isImpresora) return false;
