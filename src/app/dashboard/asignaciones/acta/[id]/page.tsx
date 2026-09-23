@@ -26,6 +26,10 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [savingSignature, setSavingSignature] = useState(false);
   const sigCanvas = useRef<any>(null);
 
+  // Observaciones de devolución
+  const [observacionesDevolucion, setObservacionesDevolucion] = useState('');
+  const [savingObs, setSavingObs] = useState(false);
+
   const handleOpenModal = async (role: 'colaborador' | 'entrega' | 'gerencia') => {
     setSigningRole(role);
     setIsModalOpen(true);
@@ -154,6 +158,20 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     } catch (error) {
       console.error("Error borrando firma:", error);
       alert('Error al borrar la firma.');
+    }
+  };
+
+  const handleSaveObservaciones = async () => {
+    setSavingObs(true);
+    try {
+      await updateDoc(doc(db, 'asignaciones', id), {
+        observacionesDevolucion: observacionesDevolucion.trim()
+      });
+      setAsignacion({ ...asignacion, observacionesDevolucion: observacionesDevolucion.trim() });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingObs(false);
     }
   };
 
@@ -318,22 +336,67 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         )}
 
         <div className="acta-legal-text">
-          <p>
-            Por medio del presente documento, hago constar que he recibido por parte de la empresa el equipo 
-            informático descrito anteriormente, el cual me es asignado en perfectas condiciones de funcionamiento 
-            (salvo las observaciones especificadas) y estrictamente para uso como <strong>herramienta de trabajo</strong> 
-            en el cumplimiento de mis labores asignadas.
-          </p>
-          <br />
-          <p>
-            <strong>Me comprometo a:</strong>
-          </p>
-          <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
-            <li>Darle un uso adecuado y exclusivo para actividades relacionadas con la empresa.</li>
-            <li>No instalar software pirata, malicioso o no autorizado por el departamento de tecnología.</li>
-            <li>Responder económicamente por la pérdida, robo o daños ocasionados por el mal uso, negligencia o descuido del equipo.</li>
-            <li>Devolver el equipo inmediatamente al cese de mis funciones o cuando la empresa lo requiera, en las mismas condiciones en que fue entregado, salvo el deterioro por desgaste natural.</li>
-          </ul>
+          {asignacion.estado === 'Devuelto' ? (
+            <>
+              <p>
+                Por medio del presente documento, <strong>{persona?.name || asignacion.personaName}</strong>, identificado(a) con 
+                C.C. <strong>{persona?.idNumber || ''}</strong>, hace entrega formal del equipo descrito anteriormente a la empresa 
+                <strong> CONTEX S.A.S.</strong>, en las condiciones especificadas, dando por terminada la responsabilidad 
+                sobre dicho activo a partir de la fecha de devolución indicada.
+              </p>
+              <br />
+              <p><strong>Estado en que se devuelve el equipo:</strong></p>
+              {asignacion.observacionesDevolucion ? (
+                <div style={{ marginTop: '10px', padding: '12px 15px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                  <p>{asignacion.observacionesDevolucion}</p>
+                </div>
+              ) : (
+                <div className="no-print" style={{ marginTop: '10px' }}>
+                  <textarea
+                    value={observacionesDevolucion}
+                    onChange={(e) => setObservacionesDevolucion(e.target.value)}
+                    placeholder="Describa el estado en que se recibe el equipo (daños, faltantes, buen estado, etc.)"
+                    rows={4}
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }}
+                  />
+                  <button
+                    onClick={handleSaveObservaciones}
+                    disabled={savingObs || !observacionesDevolucion.trim()}
+                    style={{ marginTop: '8px', padding: '8px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    {savingObs ? 'Guardando...' : 'Guardar Observaciones'}
+                  </button>
+                  <p style={{ marginTop: '8px', color: '#6b7280', fontSize: '12px' }}>Las observaciones son opcionales. Si no hay observaciones relevantes, puede proceder a firmar directamente.</p>
+                </div>
+              )}
+              {asignacion.observacionesDevolucion && (
+                <button
+                  className="no-print"
+                  onClick={() => { setAsignacion({ ...asignacion, observacionesDevolucion: null }); setObservacionesDevolucion(''); }}
+                  style={{ marginTop: '5px', fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Editar observaciones
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p>
+                Por medio del presente documento, hago constar que he recibido por parte de la empresa el equipo 
+                informático descrito anteriormente, el cual me es asignado en perfectas condiciones de funcionamiento 
+                (salvo las observaciones especificadas) y estrictamente para uso como <strong>herramienta de trabajo</strong> 
+                en el cumplimiento de mis labores asignadas.
+              </p>
+              <br />
+              <p><strong>Me comprometo a:</strong></p>
+              <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
+                <li>Darle un uso adecuado y exclusivo para actividades relacionadas con la empresa.</li>
+                <li>No instalar software pirata, malicioso o no autorizado por el departamento de tecnología.</li>
+                <li>Responder económicamente por la pérdida, robo o daños ocasionados por el mal uso, negligencia o descuido del equipo.</li>
+                <li>Devolver el equipo inmediatamente al cese de mis funciones o cuando la empresa lo requiera, en las mismas condiciones en que fue entregado, salvo el deterioro por desgaste natural.</li>
+              </ul>
+            </>
+          )}
         </div>
 
         <div className="acta-firmas">
@@ -347,7 +410,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaEntrega ? { marginTop: '5px' } : {}}>
-              <p><strong>Entregado por:</strong></p>
+              <p><strong>{asignacion.estado === 'Devuelto' ? 'Recibido conforme por:' : 'Entregado por:'}</strong></p>
               <p>{currentUser?.name || '___________________________'}</p>
               <p>C.C. {currentUser?.cedula || '___________'}</p>
             </div>
@@ -362,7 +425,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </div>
             )}
             <div className="firma-line" style={asignacion.firmaColaborador ? { marginTop: '5px' } : {}}>
-              <p><strong>Recibido y Aceptado por:</strong></p>
+              <p><strong>{asignacion.estado === 'Devuelto' ? 'Entregado por el Colaborador:' : 'Recibido y Aceptado por:'}</strong></p>
               <p>{persona?.name || asignacion.personaName}</p>
               <p>C.C. {persona?.idNumber || ''}</p>
             </div>
