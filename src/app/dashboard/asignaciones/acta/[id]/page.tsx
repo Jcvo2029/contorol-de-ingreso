@@ -1,7 +1,8 @@
 "use client";
-import React, { useEffect, useState } from 'react';
-import { doc, getDoc } from 'firebase/firestore';
+import React, { useEffect, useState, useRef } from 'react';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import SignatureCanvas from 'react-signature-canvas';
 import Image from 'next/image';
 import Link from 'next/link';
 import './acta.css';
@@ -18,6 +19,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [equipo, setEquipo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [signatureError, setSignatureError] = useState('');
+  const [savingSignature, setSavingSignature] = useState(false);
+  const sigCanvas = useRef<any>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -61,18 +67,56 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     return date.toLocaleDateString('es-CO', { year: 'numeric', month: 'long', day: 'numeric' });
   };
 
+  const handleSaveSignature = async () => {
+    if (sigCanvas.current?.isEmpty()) {
+      setSignatureError('Por favor, dibuje su firma antes de guardar.');
+      return;
+    }
+    setSignatureError('');
+    setSavingSignature(true);
+    
+    try {
+      const dataURL = sigCanvas.current?.getTrimmedCanvas().toDataURL('image/png');
+      
+      await updateDoc(doc(db, 'asignaciones', id), {
+        firmaColaborador: dataURL,
+        fechaFirma: serverTimestamp()
+      });
+      
+      setAsignacion({ ...asignacion, firmaColaborador: dataURL });
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error guardando firma:", error);
+      setSignatureError('Error al guardar la firma. Intente de nuevo.');
+    } finally {
+      setSavingSignature(false);
+    }
+  };
+
+  const handleClearSignature = () => {
+    sigCanvas.current?.clear();
+    setSignatureError('');
+  };
+
   if (loading) return <div style={{ padding: '40px', textAlign: 'center' }}>Cargando documento...</div>;
   if (!asignacion) return <div style={{ padding: '40px', textAlign: 'center' }}>No se encontró el acta de asignación.</div>;
 
   return (
     <div style={{ padding: '20px' }}>
       <div className="acta-actions">
-        <Link href="/dashboard/asignaciones" className="btn-volver">
-          <i className="fa-solid fa-arrow-left"></i> Volver a Asignaciones
-        </Link>
-        <button onClick={() => window.print()} className="btn-imprimir">
-          <i className="fa-solid fa-print"></i> Imprimir Acta
-        </button>
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <Link href="/dashboard/asignaciones" className="btn-volver">
+            <i className="fa-solid fa-arrow-left"></i> Volver a Asignaciones
+          </Link>
+          <button onClick={() => window.print()} className="btn-imprimir">
+            <i className="fa-solid fa-print"></i> Imprimir Acta
+          </button>
+        </div>
+        {!asignacion.firmaColaborador && (
+          <button onClick={() => setIsModalOpen(true)} className="btn-firmar">
+            <i className="fa-solid fa-pen-nib"></i> Firmar Acta (Colaborador)
+          </button>
+        )}
       </div>
 
       <div className="acta-container">
@@ -118,39 +162,42 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
 
         <div className="acta-section">
           <h3>Datos del Equipo Asignado</h3>
-          <table className="equipo-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-            <thead>
-              <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-                <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Tipo de Equipo</th>
-                <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Marca</th>
-                <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Modelo</th>
-                <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Número de Serie</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(equipo?.equipmentType) || 'No registrado'}</td>
-                <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText((equipo?.brandModel || asignacion.equipoBrandModel || '').split(' ')[0]) || 'No registrado'}</td>
-                <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText((equipo?.brandModel || asignacion.equipoBrandModel || '').split(' ').slice(1).join(' ')) || 'No registrado'}</td>
-                <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{equipo?.serialNumber || 'No registrado'}</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="table-responsive">
+            <table className="equipo-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+              <thead>
+                <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Tipo de Equipo</th>
+                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Marca</th>
+                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Modelo</th>
+                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Número de Serie</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(equipo?.equipmentType) || 'No registrado'}</td>
+                  <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText((equipo?.brandModel || asignacion.equipoBrandModel || '').split(' ')[0]) || 'No registrado'}</td>
+                  <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText((equipo?.brandModel || asignacion.equipoBrandModel || '').split(' ').slice(1).join(' ')) || 'No registrado'}</td>
+                  <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{equipo?.serialNumber || 'No registrado'}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {(persona?.office365Email || persona?.office365License || persona?.domainUser || persona?.siesaUser || persona?.office365Key || persona?.printerBrandModel) && (
           <div className="acta-section">
             <h3>Herramientas Tecnológicas Asignadas</h3>
-            <table className="herramientas-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
-              <thead>
-                <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
-                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Descripción / Herramienta</th>
-                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Usuario / Detalle</th>
-                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Sistema / Tipo</th>
-                  <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Llave / Serial</th>
-                </tr>
-              </thead>
-              <tbody>
+            <div className="table-responsive">
+              <table className="herramientas-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+                <thead>
+                  <tr style={{ background: '#f3f4f6', borderBottom: '2px solid #e5e7eb', textAlign: 'left' }}>
+                    <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Descripción / Herramienta</th>
+                    <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Usuario / Detalle</th>
+                    <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Sistema / Tipo</th>
+                    <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Llave / Serial</th>
+                  </tr>
+                </thead>
+                <tbody>
                 {persona?.office365License && (
                   <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(persona.office365License)}</td>
@@ -185,6 +232,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                 )}
               </tbody>
             </table>
+            </div>
           </div>
         )}
 
@@ -223,7 +271,12 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             </div>
           </div>
           <div className="firma-box">
-            <div className="firma-line">
+            {asignacion.firmaColaborador && (
+              <div style={{ textAlign: 'center', marginBottom: '5px' }}>
+                <img src={asignacion.firmaColaborador} alt="Firma Colaborador" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
+              </div>
+            )}
+            <div className="firma-line" style={asignacion.firmaColaborador ? { marginTop: '5px' } : {}}>
               <p><strong>Recibido y Aceptado por:</strong></p>
               <p>{persona?.name || asignacion.personaName}</p>
               <p>C.C. {persona?.idNumber || ''}</p>
@@ -239,6 +292,33 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         </div>
 
       </div>
+
+      {isModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content signature-modal">
+            <h3>Firma del Colaborador</h3>
+            <p style={{ marginBottom: '15px', color: '#4b5563', fontSize: '0.9rem' }}>Por favor, firme en el recuadro blanco usando su dedo o el mouse.</p>
+            
+            <div className="signature-container">
+              <SignatureCanvas 
+                ref={sigCanvas} 
+                penColor="black"
+                canvasProps={{ className: 'sigCanvas' }} 
+              />
+            </div>
+            
+            {signatureError && <p style={{ color: '#ef4444', marginTop: '10px', fontSize: '0.9rem' }}>{signatureError}</p>}
+            
+            <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button onClick={() => setIsModalOpen(false)} className="btn-cancelar" disabled={savingSignature}>Cancelar</button>
+              <button onClick={handleClearSignature} className="btn-limpiar" disabled={savingSignature}>Limpiar</button>
+              <button onClick={handleSaveSignature} className="btn-save" disabled={savingSignature}>
+                {savingSignature ? 'Guardando...' : 'Guardar Firma'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
