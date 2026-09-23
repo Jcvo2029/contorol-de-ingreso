@@ -486,30 +486,32 @@ export default function EquiposPage() {
           <div className="modal-content">
             <h3>Registrar Nuevo Activo <button className="close-btn" onClick={() => setShowAddModal(false)}>&times;</button></h3>
             <form onSubmit={handleAddEquipment}>
-              <div className="form-group">
-                <label>Código de Activo *</label>
-                <input type="text" value={assetCode} onChange={e => setAssetCode(e.target.value)} placeholder="Ej: ACT-00123" required />
-              </div>
-              <div className="form-group">
-                <label>Serial *</label>
-                <input type="text" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} placeholder="Ej: PFXXXXXX" required />
-              </div>
-              <div className="form-group">
-                <label>Tipo de Equipo *</label>
-                <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
-                  <option value="Portátil">Portátil</option>
-                  <option value="PC Escritorio">PC Escritorio</option>
-                  <option value="Monitor">Monitor</option>
-                  <option value="Tablet">Tablet</option>
-                  <option value="Docking Station">Docking Station</option>
-                  <option value="Periférico">Periférico</option>
-                  <option value="Impresora">Impresora</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Marca y Modelo *</label>
-                <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Código de Activo *</label>
+                  <input type="text" value={assetCode} onChange={e => setAssetCode(e.target.value)} placeholder="Ej: ACT-00123" required />
+                </div>
+                <div className="form-group">
+                  <label>Serial *</label>
+                  <input type="text" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} placeholder="Ej: PFXXXXXX" required />
+                </div>
+                <div className="form-group">
+                  <label>Tipo de Equipo *</label>
+                  <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
+                    <option value="Portátil">Portátil</option>
+                    <option value="PC Escritorio">PC Escritorio</option>
+                    <option value="Monitor">Monitor</option>
+                    <option value="Tablet">Tablet</option>
+                    <option value="Docking Station">Docking Station</option>
+                    <option value="Periférico">Periférico</option>
+                    <option value="Impresora">Impresora</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Marca y Modelo *</label>
+                  <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
+                </div>
               </div>
               
               {(equipmentType === 'Portátil' || equipmentType === 'PC Escritorio') && (
@@ -589,30 +591,32 @@ export default function EquiposPage() {
           <div className="modal-content">
             <h3>Editar Activo <button className="close-btn" onClick={() => { setEditingEquip(null); resetForm(); }}>&times;</button></h3>
             <form onSubmit={handleUpdateEquipment}>
-              <div className="form-group">
-                <label>Código de Activo *</label>
-                <input type="text" value={assetCode} onChange={e => setAssetCode(e.target.value)} placeholder="Ej: ACT-00123" required />
-              </div>
-              <div className="form-group">
-                <label>Serial *</label>
-                <input type="text" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} placeholder="Ej: PFXXXXXX" required />
-              </div>
-              <div className="form-group">
-                <label>Tipo de Equipo *</label>
-                <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
-                  <option value="Portátil">Portátil</option>
-                  <option value="PC Escritorio">PC Escritorio</option>
-                  <option value="Monitor">Monitor</option>
-                  <option value="Tablet">Tablet</option>
-                  <option value="Docking Station">Docking Station</option>
-                  <option value="Periférico">Periférico</option>
-                  <option value="Impresora">Impresora</option>
-                  <option value="Otro">Otro</option>
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Marca y Modelo *</label>
-                <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Código de Activo *</label>
+                  <input type="text" value={assetCode} onChange={e => setAssetCode(e.target.value)} placeholder="Ej: ACT-00123" required />
+                </div>
+                <div className="form-group">
+                  <label>Serial *</label>
+                  <input type="text" value={serialNumber} onChange={e => setSerialNumber(e.target.value)} placeholder="Ej: PFXXXXXX" required />
+                </div>
+                <div className="form-group">
+                  <label>Tipo de Equipo *</label>
+                  <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
+                    <option value="Portátil">Portátil</option>
+                    <option value="PC Escritorio">PC Escritorio</option>
+                    <option value="Monitor">Monitor</option>
+                    <option value="Tablet">Tablet</option>
+                    <option value="Docking Station">Docking Station</option>
+                    <option value="Periférico">Periférico</option>
+                    <option value="Impresora">Impresora</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label>Marca y Modelo *</label>
+                  <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
+                </div>
               </div>
               
               {(equipmentType === 'Portátil' || equipmentType === 'PC Escritorio') && (
