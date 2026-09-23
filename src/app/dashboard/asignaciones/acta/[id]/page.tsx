@@ -26,6 +26,36 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [savingSignature, setSavingSignature] = useState(false);
   const sigCanvas = useRef<any>(null);
 
+  const handleOpenModal = async (role: 'colaborador' | 'entrega' | 'gerencia') => {
+    setSigningRole(role);
+    setIsModalOpen(true);
+    
+    if (window.innerWidth <= 768) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
+          await window.screen.orientation.lock('landscape');
+        }
+      } catch (err) {
+        console.warn('Orientation lock failed or not supported:', err);
+      }
+    }
+  };
+
+  const handleCloseModal = async () => {
+    setIsModalOpen(false);
+    setSigningRole(null);
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  };
+
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -90,8 +120,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
       
       setAsignacion({ ...asignacion, [fieldName]: dataURL });
-      setIsModalOpen(false);
-      setSigningRole(null);
+      await handleCloseModal();
     } catch (error) {
       console.error("Error guardando firma:", error);
       setSignatureError('Error al guardar la firma. Intente de nuevo.');
@@ -144,17 +173,17 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {!asignacion.firmaEntrega && (
-            <button onClick={() => { setSigningRole('entrega'); setIsModalOpen(true); }} className="btn-firmar">
+            <button onClick={() => handleOpenModal('entrega')} className="btn-firmar">
               <i className="fa-solid fa-pen-nib"></i> Firmar (Entrega)
             </button>
           )}
           {!asignacion.firmaColaborador && (
-            <button onClick={() => { setSigningRole('colaborador'); setIsModalOpen(true); }} className="btn-firmar">
+            <button onClick={() => handleOpenModal('colaborador')} className="btn-firmar">
               <i className="fa-solid fa-pen-nib"></i> Firmar (Colaborador)
             </button>
           )}
           {!asignacion.firmaGerencia && (
-            <button onClick={() => { setSigningRole('gerencia'); setIsModalOpen(true); }} className="btn-firmar">
+            <button onClick={() => handleOpenModal('gerencia')} className="btn-firmar">
               <i className="fa-solid fa-pen-nib"></i> Firmar (Gerencia)
             </button>
           )}
@@ -377,7 +406,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             {signatureError && <p style={{ color: '#ef4444', marginTop: '10px', fontSize: '0.9rem' }}>{signatureError}</p>}
             
             <div className="modal-actions" style={{ marginTop: '20px', display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-              <button onClick={() => setIsModalOpen(false)} className="btn-cancelar" disabled={savingSignature}>Cancelar</button>
+              <button onClick={handleCloseModal} className="btn-cancelar" disabled={savingSignature}>Cancelar</button>
               <button onClick={handleClearSignature} className="btn-limpiar" disabled={savingSignature}>Limpiar</button>
               <button onClick={handleSaveSignature} className="btn-save" disabled={savingSignature}>
                 {savingSignature ? 'Guardando...' : 'Guardar Firma'}
