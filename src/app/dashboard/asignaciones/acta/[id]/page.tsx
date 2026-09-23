@@ -26,8 +26,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [savingSignature, setSavingSignature] = useState(false);
   const sigCanvas = useRef<any>(null);
 
-  // Observaciones de devolución
+  // Observaciones de devolución y entrega
   const [observacionesDevolucion, setObservacionesDevolucion] = useState('');
+  const [observacionesEntrega, setObservacionesEntrega] = useState('');
   const [savingObs, setSavingObs] = useState(false);
 
   // Toggle between 'entrega' and 'devolucion' views when estado is Devuelto
@@ -171,6 +172,20 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         observacionesDevolucion: observacionesDevolucion.trim()
       });
       setAsignacion({ ...asignacion, observacionesDevolucion: observacionesDevolucion.trim() });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingObs(false);
+    }
+  };
+
+  const handleSaveObservacionesEntrega = async () => {
+    setSavingObs(true);
+    try {
+      await updateDoc(doc(db, 'asignaciones', id), {
+        observaciones: observacionesEntrega.trim()
+      });
+      setAsignacion({ ...asignacion, observaciones: observacionesEntrega.trim() });
     } catch (e) {
       console.error(e);
     } finally {
@@ -359,10 +374,42 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
         )}
 
-        {asignacion.observaciones && (
+        {/* Observaciones de Entrega */}
+        {(asignacion.observaciones || viewMode === 'entrega' || asignacion.estado !== 'Devuelto') && (
           <div className="acta-section">
-            <h3>Observaciones del Estado</h3>
-            <p style={{ marginTop: '5px' }}>{asignacion.observaciones}</p>
+            <h3>Observaciones del Estado de Entrega</h3>
+            {asignacion.observaciones ? (
+              <div style={{ marginTop: '5px' }}>
+                <p>{asignacion.observaciones}</p>
+                {(viewMode === 'entrega' || asignacion.estado !== 'Devuelto') && (
+                  <button
+                    className="no-print"
+                    onClick={() => { setAsignacion({ ...asignacion, observaciones: null }); setObservacionesEntrega(''); }}
+                    style={{ marginTop: '5px', fontSize: '12px', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+                  >
+                    Editar observaciones de entrega
+                  </button>
+                )}
+              </div>
+            ) : (viewMode === 'entrega' || asignacion.estado !== 'Devuelto') && (
+              <div className="no-print" style={{ marginTop: '10px' }}>
+                <textarea
+                  value={observacionesEntrega}
+                  onChange={(e) => setObservacionesEntrega(e.target.value)}
+                  placeholder="Describa las observaciones del equipo al momento de la entrega (daños, faltantes, buen estado, etc.)"
+                  rows={4}
+                  style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', fontSize: '14px', resize: 'vertical', boxSizing: 'border-box' }}
+                />
+                <button
+                  onClick={handleSaveObservacionesEntrega}
+                  disabled={savingObs || !observacionesEntrega.trim()}
+                  style={{ marginTop: '8px', padding: '8px 20px', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  {savingObs ? 'Guardando...' : 'Guardar Observaciones'}
+                </button>
+                <p style={{ marginTop: '8px', color: '#6b7280', fontSize: '12px' }}>Las observaciones son opcionales. Si no hay observaciones relevantes, deje el campo vacío.</p>
+              </div>
+            )}
           </div>
         )}
 
