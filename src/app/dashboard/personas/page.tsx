@@ -19,6 +19,7 @@ interface Persona {
   domainUser?: string;
   siesaUser?: string;
   status?: 'Activo' | 'Inactivo';
+  fechaRetiro?: any;
   createdAt: any;
 }
 
@@ -156,7 +157,8 @@ export default function PersonasPage() {
 
       await updateDoc(doc(db, 'personas', persona.id), {
         status: 'Inactivo',
-        email: updatedEmail || ''
+        email: updatedEmail || '',
+        fechaRetiro: serverTimestamp()
       });
 
       // 2. Liberar todas las asignaciones activas
@@ -539,6 +541,11 @@ export default function PersonasPage() {
                       }}>
                         {persona.status || 'Activo'}
                       </span>
+                      {persona.status === 'Inactivo' && persona.fechaRetiro && (
+                        <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                          Devuelto: {persona.fechaRetiro?.toDate ? persona.fechaRetiro.toDate().toLocaleDateString() : ''}
+                        </div>
+                      )}
                     </td>
                     <td className="actions-cell">
                       <button className="btn-qr" onClick={() => handleShowHistory(persona)} title="Ver Historial" style={{ background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db', marginRight: '6px' }}>
