@@ -359,4 +359,54 @@
 
 @media print {
   .no-print { display: none !important; }
+
+  /* Compact layout specifically for printing on 1 page */
+  @page {
+    margin: 1cm;
+  }
+  .acta-header {
+    padding-bottom: 10px !important;
+    margin-bottom: 15px !important;
+  }
+  .acta-title {
+    margin-bottom: 15px !important;
+  }
+  .acta-title h1 {
+    font-size: 1.2rem !important;
+  }
+  .acta-section {
+    margin-bottom: 10px !important;
+  }
+  .acta-section h3 {
+    font-size: 0.95rem !important;
+    margin-bottom: 8px !important;
+  }
+  .acta-label {
+    font-size: 0.75rem !important;
+  }
+  .acta-value {
+    font-size: 0.85rem !important;
+  }
+  .equipo-table th, .equipo-table td, .herramientas-table th, .herramientas-table td {
+    padding: 6px 10px !important;
+    font-size: 0.85rem !important;
+  }
+  .acta-legal-text {
+    font-size: 0.85rem !important;
+    line-height: 1.3 !important;
+    margin-bottom: 15px !important;
+  }
+  .acta-firmas {
+    margin-top: 20px !important;
+  }
+  .firma-box img {
+    max-height: 50px !important;
+  }
+  .firma-line {
+    margin-top: 20px !important;
+  }
+  .firma-line p {
+    font-size: 0.85rem !important;
+    margin: 2px 0 !important;
+  }
 }
