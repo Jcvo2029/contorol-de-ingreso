@@ -35,8 +35,8 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         if (document.documentElement.requestFullscreen) {
           await document.documentElement.requestFullscreen();
         }
-        if (window.screen && window.screen.orientation && window.screen.orientation.lock) {
-          await window.screen.orientation.lock('landscape');
+        if (window.screen && window.screen.orientation && (window.screen.orientation as any).lock) {
+          await (window.screen.orientation as any).lock('landscape');
         }
       } catch (err) {
         console.warn('Orientation lock failed or not supported:', err);
