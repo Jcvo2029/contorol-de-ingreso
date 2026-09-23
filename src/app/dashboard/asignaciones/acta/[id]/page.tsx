@@ -371,9 +371,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             <>
               <p>
                 Por medio del presente documento, <strong>{persona?.name || asignacion.personaName}</strong>, identificado(a) con 
-                C.C. <strong>{persona?.idNumber || ''}</strong>, hace entrega formal del equipo descrito anteriormente a la empresa 
-                <strong> CONTEX S.A.S.</strong>, en las condiciones especificadas, dando por terminada la responsabilidad 
-                sobre dicho activo a partir de la fecha de devolución indicada.
+                C.C. <strong>{persona?.idNumber || ''}</strong>, hace entrega formal del equipo y de las herramientas tecnológicas 
+                descritas anteriormente a la empresa <strong> CONTEX S.A.S.</strong>, en las condiciones especificadas, dando por 
+                terminada la responsabilidad sobre dichos activos a partir de la fecha de devolución indicada.
               </p>
               <br />
               <p><strong>Estado en que se devuelve el equipo:</strong></p>
@@ -413,9 +413,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           ) : (
             <>
               <p>
-                Por medio del presente documento, hago constar que he recibido por parte de la empresa el equipo 
-                informático descrito anteriormente, el cual me es asignado en perfectas condiciones de funcionamiento 
-                (salvo las observaciones especificadas) y estrictamente para uso como <strong>herramienta de trabajo</strong> 
+                Por medio del presente documento, hago constar que he recibido por parte de la empresa el equipo informático 
+                y las herramientas tecnológicas descritas anteriormente, los cuales me son asignados en perfectas condiciones de 
+                funcionamiento (salvo las observaciones especificadas) y estrictamente para uso como <strong>herramienta de trabajo</strong> 
                 en el cumplimiento de mis labores asignadas.
               </p>
               <br />
