@@ -23,6 +23,7 @@ interface Equipment {
   parlantes?: boolean;
   tipoImpresora?: string;
   ipAddress?: string;
+  ubicacion?: string;
   osVersion?: string;
   windowsLicense?: string;
   officeLicense?: string;
