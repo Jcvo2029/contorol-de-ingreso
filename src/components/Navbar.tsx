@@ -109,25 +109,11 @@ export default function Navbar() {
           {user.role === 'Admin' && (
             <>
               <Link 
-                href="/dashboard/usuarios" 
-                className={isActive('/dashboard/usuarios') ? 'active' : ''}
+                href="/dashboard/personal" 
+                className={isActive('/dashboard/personal') ? 'active' : ''}
                 onClick={() => setMenuOpen(false)}
               >
-                <i className="fa-solid fa-users-gear"></i> Usuarios
-              </Link>
-              <Link 
-                href="/dashboard/personas" 
-                className={isActive('/dashboard/personas') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-address-book"></i> Personas
-              </Link>
-              <Link 
-                href="/dashboard/areas" 
-                className={isActive('/dashboard/areas') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-building"></i> Áreas
+                <i className="fa-solid fa-users"></i> Personal y Accesos
               </Link>
               <Link 
                 href="/dashboard/equipos" 
@@ -135,6 +121,13 @@ export default function Navbar() {
                 onClick={() => setMenuOpen(false)}
               >
                 <i className="fa-solid fa-server"></i> Equipos
+              </Link>
+              <Link 
+                href="/dashboard/mantenimientos" 
+                className={isActive('/dashboard/mantenimientos') ? 'active' : ''}
+                onClick={() => setMenuOpen(false)}
+              >
+                <i className="fa-solid fa-screwdriver-wrench"></i> Mantenimientos
               </Link>
               <Link 
                 href="/dashboard/asignaciones" 

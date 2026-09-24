@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useState, useRef } from 'react';
-import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import SignatureCanvas from 'react-signature-canvas';
 import Image from 'next/image';
@@ -19,6 +19,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [equipo, setEquipo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [sharedPrinters, setSharedPrinters] = useState<any[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'colaborador' | 'entrega' | 'gerencia' | null>(null);
@@ -33,6 +34,8 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
 
   // Toggle between 'entrega' and 'devolucion' views when estado is Devuelto
   const [viewMode, setViewMode] = useState<'entrega' | 'devolucion'>('devolucion');
+
+  const [showContentMobile, setShowContentMobile] = useState(false);
 
   const handleOpenModal = async (role: 'colaborador' | 'entrega' | 'gerencia') => {
     setSigningRole(role);
@@ -79,9 +82,36 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           setAsignacion(asigData);
 
           // Fetch Persona details
+          let personaData = null;
           if (asigData.personaId) {
             const persDoc = await getDoc(doc(db, 'personas', asigData.personaId));
-            if (persDoc.exists()) setPersona(persDoc.data());
+            if (persDoc.exists()) {
+              personaData = persDoc.data();
+              setPersona(personaData);
+            }
+          }
+
+          // Fetch Area's shared printers if this persona doesn't have it directly
+          if (personaData && personaData.area) {
+             const qArea = query(collection(db, 'personas'), where('area', '==', personaData.area));
+             const areaSnapshot = await getDocs(qArea);
+             let shared: any[] = [];
+             areaSnapshot.docs.forEach(d => {
+               if (d.id !== asigData.personaId) {
+                 const p = d.data();
+                 if (p.printerBrandModel) {
+                   shared.push({ brandModel: p.printerBrandModel, serial: p.printerSerial, mainUser: p.name });
+                 }
+                 if (p.assignedPrinters) {
+                   p.assignedPrinters.forEach((ap:any) => {
+                     shared.push({ brandModel: ap.brandModel, serial: ap.serial, mainUser: p.name });
+                   });
+                 }
+               }
+             });
+             if (shared.length > 0) {
+               setSharedPrinters(shared);
+             }
           }
 
           // Fetch Equipo details
@@ -255,26 +285,36 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       )}
 
       <div className="acta-container">
-        <div className="acta-header">
-          <div className="acta-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-             <img 
-              src="/img/logo-contexsas.png?v=2" 
-              alt="Logo Empresa"
-              style={{ width: '150px', height: 'auto', objectFit: 'contain' }}
-              onError={(e) => { e.currentTarget.style.display = 'none'; }}
-            />
-          </div>
-          <div className="acta-header-info">
-            <p><strong>Fecha Asignación:</strong> {formatDate(asignacion.fechaAsignacion)}</p>
-            {viewMode === 'devolucion' && asignacion.estado === 'Devuelto' && asignacion.fechaDevolucion && (
-              <p style={{ marginTop: '5px' }}><strong>Fecha Devolución:</strong> {formatDate(asignacion.fechaDevolucion)}</p>
-            )}
-          </div>
+        <div className="mobile-toggle-content no-print">
+          <button 
+            onClick={() => setShowContentMobile(!showContentMobile)}
+            className="btn-toggle-content"
+          >
+            <i className={`fa-solid ${showContentMobile ? 'fa-eye-slash' : 'fa-eye'}`}></i> {showContentMobile ? 'Ocultar Contenido' : 'Ver Contenido'}
+          </button>
         </div>
 
-        <div className="acta-title">
-          <h1>{viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? 'ACTA DE DEVOLUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA Y COMPROMISO DE EQUIPO'}</h1>
-        </div>
+        <div className={`acta-content-wrapper ${showContentMobile ? 'show-mobile' : 'hide-mobile'}`}>
+          <div className="acta-header">
+            <div className="acta-logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+               <img 
+                src="/img/logo-contexsas.png?v=2" 
+                alt="Logo Empresa"
+                style={{ width: '150px', height: 'auto', objectFit: 'contain' }}
+                onError={(e) => { e.currentTarget.style.display = 'none'; }}
+              />
+            </div>
+            <div className="acta-header-info">
+              <p><strong>Fecha Asignación:</strong> {formatDate(asignacion.fechaAsignacion)}</p>
+              {viewMode === 'devolucion' && asignacion.estado === 'Devuelto' && asignacion.fechaDevolucion && (
+                <p style={{ marginTop: '5px' }}><strong>Fecha Devolución:</strong> {formatDate(asignacion.fechaDevolucion)}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="acta-title">
+            <h1>{viewMode === 'devolucion' && asignacion.estado === 'Devuelto' ? 'ACTA DE DEVOLUCIÓN DE EQUIPO' : 'ACTA DE ENTREGA Y COMPROMISO DE EQUIPO'}</h1>
+          </div>
 
         <div className="acta-section">
           <h3>Datos del Colaborador</h3>
@@ -322,7 +362,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {(persona?.office365Email || persona?.office365License || persona?.domainUser || persona?.siesaUser || persona?.office365Key || persona?.printerBrandModel) && (
+        {(persona?.office365Email || persona?.office365License || persona?.domainUser || persona?.siesaUser || persona?.office365Key || persona?.printerBrandModel || (persona?.assignedPrinters && persona?.assignedPrinters.length > 0) || sharedPrinters.length > 0) && (
           <div className="acta-section">
             <h3>Herramientas Tecnológicas Asignadas</h3>
             <div className="table-responsive">
@@ -340,7 +380,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                   <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(persona.office365License)}</td>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{formatText(persona.office365Email) || '---'}</td>
-                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Office 365</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Paquete de Office</td>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', fontFamily: 'monospace' }}>{persona.office365Key || 'N/A'}</td>
                   </tr>
                 )}
@@ -368,6 +408,22 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{persona.printerSerial || 'N/A'}</td>
                   </tr>
                 )}
+                {persona?.assignedPrinters?.map((ap: any, i: number) => (
+                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Impresora Adicional</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(ap.brandModel)}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Hardware</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{ap.serial || 'N/A'}</td>
+                  </tr>
+                ))}
+                {sharedPrinters.map((sp: any, i: number) => (
+                  <tr key={`shared-${i}`} style={{ borderBottom: '1px solid #e5e7eb', background: '#f8fafc' }}>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Impresora de Área (Compartida)</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(sp.brandModel)}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Hardware</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{sp.serial || 'N/A'}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
             </div>
@@ -471,6 +527,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </ul>
             </>
           )}
+        </div>
         </div>
 
         <div className="acta-firmas">

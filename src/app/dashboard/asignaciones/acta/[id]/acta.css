@@ -208,11 +208,6 @@
     text-align: center;
   }
   
-  .acta-grid {
-    grid-template-columns: 1fr;
-    gap: 15px;
-  }
-  
   .acta-firmas {
     flex-direction: column;
     gap: 40px;
@@ -226,10 +221,6 @@
     margin-top: 40px;
   }
 
-  .equipo-table, .herramientas-table {
-    min-width: 500px; /* Obliga al scroll en móviles si es muy ancha */
-  }
-
   .acta-actions {
     flex-direction: column;
   }
@@ -238,6 +229,33 @@
     width: 100%;
     justify-content: center;
   }
+
+  .mobile-toggle-content {
+    display: block !important;
+  }
+  
+  .acta-content-wrapper.hide-mobile {
+    display: none;
+  }
+}
+
+.mobile-toggle-content {
+  display: none;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.btn-toggle-content {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  background: white;
+  border: 1px solid #d1d5db;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .acta-actions {

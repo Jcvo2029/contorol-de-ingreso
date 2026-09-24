@@ -121,7 +121,9 @@
     border-radius: 16px;
     padding: 32px;
     width: 90%;
-    max-width: 700px;
+    max-width: 900px;
+    max-height: 90vh;
+    overflow-y: auto;
     box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
 
@@ -314,8 +316,8 @@
 
 @media print {
     @page {
-        margin: 0;
-        size: 3in 5in;
+        margin: 1cm;
+        size: auto;
     }
     
     /* Hide layout wrapper elements completely from print flow */
@@ -325,8 +327,7 @@
     .equipos-header-card,
     .equipos-list-card,
     .close-btn,
-    .modal-content h3,
-    .modal-content > div:last-child {
+    .no-print {
         display: none !important;
     }
     
@@ -335,20 +336,17 @@
         margin: 0 !important;
         padding: 0 !important;
         width: 100% !important;
-        height: 100vh !important;
         background: white !important;
         box-shadow: none !important;
         border: none !important;
+        height: auto !important;
     }
     
-    /* Make the modal overlay static and act as the main document container */
     .modal-overlay {
         position: static !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        display: block !important;
         width: 100% !important;
-        height: 100vh !important;
+        height: auto !important;
         background: white !important;
         padding: 0 !important;
     }
@@ -361,17 +359,15 @@
         margin: 0 !important;
         width: 100% !important;
         max-width: 100% !important;
-        height: 100% !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
+        height: auto !important;
+        display: block !important;
     }
     
     .qr-container {
         border: none !important;
         background: white !important;
         padding: 10px !important;
-        margin: 0 !important;
+        margin: 0 auto !important;
         width: 100% !important;
         display: flex !important;
         flex-direction: column !important;
@@ -403,6 +399,11 @@
         font-weight: 700 !important;
         color: black !important;
         text-align: center !important;
+    }
+
+    .hoja-vida-print-area {
+        display: block !important;
+        width: 100% !important;
     }
 }
 
