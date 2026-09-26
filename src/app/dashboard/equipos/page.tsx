@@ -30,6 +30,7 @@ interface Equipment {
   accessControlList?: { nombre: string; rol: string }[];
   cctvChannels?: { numero: string; descripcion: string }[];
   networkPorts?: { numero: string; descripcion: string }[];
+  totalNetworkPorts?: number;
   ownership: string;
   photoUrl?: string;
   status: string;
