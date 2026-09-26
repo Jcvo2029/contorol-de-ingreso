@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import Link from 'next/link';
 import './personas.css';
 
 interface Persona {
@@ -38,6 +39,9 @@ export default function PersonasPage() {
   const [showHistoryModal, setShowHistoryModal] = useState<Persona | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // View Profile Modal State
+  const [viewProfilePersona, setViewProfilePersona] = useState<Persona | null>(null);
 
   // Form state
   const [idNumber, setIdNumber] = useState('');
@@ -214,10 +218,19 @@ export default function PersonasPage() {
     setEditingPersona(null);
   };
 
+  const searchLower = search.toLowerCase();
   const filtered = personas.filter(p =>
-    p.name.toLowerCase().includes(search.toLowerCase()) ||
-    p.idNumber.includes(search) ||
-    (p.area || '').toLowerCase().includes(search.toLowerCase())
+    (p.name || '').toLowerCase().includes(searchLower) ||
+    (p.idNumber || '').toLowerCase().includes(searchLower) ||
+    (p.area || '').toLowerCase().includes(searchLower) ||
+    (p.email || '').toLowerCase().includes(searchLower) ||
+    (p.office365Email || '').toLowerCase().includes(searchLower) ||
+    (p.office365License || '').toLowerCase().includes(searchLower) ||
+    (p.office365Key || '').toLowerCase().includes(searchLower) ||
+    (p.domainUser || '').toLowerCase().includes(searchLower) ||
+    (p.siesaUser || '').toLowerCase().includes(searchLower) ||
+    (p.status || 'Activo').toLowerCase().includes(searchLower) ||
+    (p.phone || '').toLowerCase().includes(searchLower)
   );
 
   const handleShowHistory = async (persona: Persona) => {
@@ -416,7 +429,7 @@ export default function PersonasPage() {
             <i className="fa-solid fa-magnifying-glass" style={{ position: 'absolute', left: '15px', top: '12px', color: '#9ca3af' }}></i>
             <input
               type="text"
-              placeholder="Buscar por nombre, cédula o área..."
+              placeholder="Buscar por nombre, cédula, área, licencias, correo, etc..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #d1d5db' }}
@@ -550,6 +563,9 @@ export default function PersonasPage() {
                       )}
                     </td>
                     <td className="actions-cell">
+                      <button className="btn-qr" onClick={() => setViewProfilePersona(persona)} title="Ver Perfil Completo" style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', marginRight: '6px' }}>
+                        <i className="fa-solid fa-eye"></i>
+                      </button>
                       <button className="btn-qr" onClick={() => handleShowHistory(persona)} title="Ver Historial" style={{ background: '#f3f4f6', color: '#4b5563', border: '1px solid #d1d5db', marginRight: '6px' }}>
                         <i className="fa-solid fa-clock-rotate-left"></i>
                       </button>
@@ -654,6 +670,99 @@ export default function PersonasPage() {
           </div>
         </div>
       )}
+
+      {/* View Profile Modal */}
+      {viewProfilePersona && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', padding: '30px', borderRadius: '12px', width: '90%', maxWidth: '600px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '2px solid #f3f4f6', paddingBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#111827', fontSize: '1.25rem', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <i className="fa-solid fa-address-card" style={{ color: '#3b82f6' }}></i>
+                Perfil Completo: {viewProfilePersona.name}
+              </h3>
+              <button onClick={() => setViewProfilePersona(null)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer', color: '#6b7280' }}>
+                &times;
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              <div>
+                <p style={{ margin: '0 0 5px 0', color: '#6b7280', fontSize: '12px', textTransform: 'uppercase' }}>Documento / C.C.</p>
+                <p style={{ margin: 0, fontWeight: '500', color: '#111827' }}>{viewProfilePersona.idNumber || 'N/A'}</p>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 5px 0', color: '#6b7280', fontSize: '12px', textTransform: 'uppercase' }}>Área / Empresa</p>
+                <p style={{ margin: 0, fontWeight: '500', color: '#111827' }}>
+                  {viewProfilePersona.area || viewProfilePersona.company || 'N/A'}
+                  <span style={{ marginLeft: '10px', fontSize: '11px', background: '#e5e7eb', padding: '2px 6px', borderRadius: '4px' }}>{viewProfilePersona.visitorType}</span>
+                </p>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 5px 0', color: '#6b7280', fontSize: '12px', textTransform: 'uppercase' }}>Estado</p>
+                <p style={{ margin: 0, fontWeight: '600', color: viewProfilePersona.status === 'Inactivo' ? '#dc2626' : '#16a34a' }}>
+                  {viewProfilePersona.status || 'Activo'}
+                </p>
+              </div>
+            </div>
+
+            <h4 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', color: '#374151', marginBottom: '15px' }}>
+              <i className="fa-solid fa-address-book" style={{ marginRight: '8px' }}></i>Contacto
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+              <div>
+                <p style={{ margin: '0 0 5px 0', color: '#6b7280', fontSize: '12px', textTransform: 'uppercase' }}>Correo Personal</p>
+                <p style={{ margin: 0, fontWeight: '500', color: '#111827', wordBreak: 'break-all' }}>{viewProfilePersona.email || 'N/A'}</p>
+              </div>
+              <div>
+                <p style={{ margin: '0 0 5px 0', color: '#6b7280', fontSize: '12px', textTransform: 'uppercase' }}>Teléfono</p>
+                <p style={{ margin: 0, fontWeight: '500', color: '#111827' }}>{viewProfilePersona.phone || 'N/A'}</p>
+              </div>
+            </div>
+
+            <h4 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', color: '#374151', marginBottom: '15px' }}>
+              <i className="fa-solid fa-id-card-clip" style={{ marginRight: '8px' }}></i>Licencias y Sistemas
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
+              {(viewProfilePersona.office365Email || viewProfilePersona.office365License || viewProfilePersona.office365Key) ? (
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '15px' }}>
+                  <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#0284c7' }}><i className="fa-brands fa-microsoft" style={{ marginRight: '5px' }}></i> Office / Microsoft</p>
+                  {viewProfilePersona.office365Email && (
+                    <p style={{ margin: '0 0 5px 0', color: '#334155' }}><strong>Correo:</strong> {viewProfilePersona.office365Email}</p>
+                  )}
+                  {viewProfilePersona.office365License && (
+                    <p style={{ margin: '0 0 5px 0', color: '#334155' }}><strong>Licencia:</strong> {viewProfilePersona.office365License}</p>
+                  )}
+                  {viewProfilePersona.office365Key && (
+                    <p style={{ margin: 0, color: '#334155' }}><strong>Clave:</strong> {viewProfilePersona.office365Key}</p>
+                  )}
+                </div>
+              ) : (
+                <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontStyle: 'italic' }}>Sin asignación de licencias de Office/Microsoft</p>
+              )}
+
+              <div style={{ display: 'flex', gap: '15px' }}>
+                {viewProfilePersona.domainUser && (
+                  <div style={{ flex: 1, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '15px' }}>
+                    <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#16a34a' }}><i className="fa-solid fa-network-wired" style={{ marginRight: '5px' }}></i> Dominio Red</p>
+                    <p style={{ margin: 0, color: '#334155' }}>{viewProfilePersona.domainUser}</p>
+                  </div>
+                )}
+                {viewProfilePersona.siesaUser && (
+                  <div style={{ flex: 1, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '8px', padding: '15px' }}>
+                    <p style={{ margin: '0 0 5px 0', fontWeight: 'bold', color: '#ea580c' }}><i className="fa-solid fa-database" style={{ marginRight: '5px' }}></i> Siesa</p>
+                    <p style={{ margin: 0, color: '#334155' }}>{viewProfilePersona.siesaUser}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '30px' }}>
+              <button className="btn-primary" onClick={() => setViewProfilePersona(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

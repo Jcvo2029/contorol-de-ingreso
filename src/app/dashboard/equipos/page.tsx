@@ -29,6 +29,7 @@ interface Equipment {
   officeLicense?: string;
   accessControlList?: { nombre: string; rol: string }[];
   cctvChannels?: { numero: string; descripcion: string }[];
+  networkPorts?: { numero: string; descripcion: string }[];
   ownership: string;
   photoUrl?: string;
   status: string;
@@ -113,6 +114,9 @@ export default function EquiposPage() {
   const [tonerReference, setTonerReference] = useState('');
   const [addingToner, setAddingToner] = useState(false);
   const [editingTonerIndex, setEditingTonerIndex] = useState<number | null>(null);
+  const [cctvGridSize, setCctvGridSize] = useState<string>('auto');
+  const [showTonerReport, setShowTonerReport] = useState(false);
+  const [tonerReportMode, setTonerReportMode] = useState<'actual'|'historico'>('actual');
 
   // Form State
   const [assetCode, setAssetCode] = useState('');
@@ -135,11 +139,13 @@ export default function EquiposPage() {
   const [osVersion, setOsVersion] = useState('');
   const [windowsLicense, setWindowsLicense] = useState('');
   const [officeLicense, setOfficeLicense] = useState('');
+  const [customEquipmentType, setCustomEquipmentType] = useState('');
   const [tipoImpresora, setTipoImpresora] = useState('Laserjet');
   const [ipAddress, setIpAddress] = useState('');
   const [ownership, setOwnership] = useState('Propio de la empresa');
   const [photoUrl, setPhotoUrl] = useState('');
   const [assignedPrinterUser, setAssignedPrinterUser] = useState('');
+  const [assignedUser, setAssignedUser] = useState('');
   const [ubicacion, setUbicacion] = useState('');
   const [accessControlList, setAccessControlList] = useState<{ nombre: string; rol: string }[]>([]);
   const [newAccessPerson, setNewAccessPerson] = useState('');
@@ -147,6 +153,11 @@ export default function EquiposPage() {
   const [cctvChannels, setCctvChannels] = useState<{ numero: string; descripcion: string }[]>([]);
   const [newCctvChannelNumber, setNewCctvChannelNumber] = useState('');
   const [newCctvChannelDesc, setNewCctvChannelDesc] = useState('');
+
+  const [networkPorts, setNetworkPorts] = useState<{ numero: string; descripcion: string }[]>([]);
+  const [newNetworkPortNumber, setNewNetworkPortNumber] = useState('');
+  const [newNetworkPortDesc, setNewNetworkPortDesc] = useState('');
+  const [totalNetworkPorts, setTotalNetworkPorts] = useState(24);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -224,6 +235,7 @@ export default function EquiposPage() {
     setOwnership('Propio de la empresa');
     setPhotoUrl('');
     setAssignedPrinterUser('');
+    setAssignedUser('');
     setUbicacion('');
     setAccessControlList([]);
     setNewAccessPerson('');
@@ -231,6 +243,9 @@ export default function EquiposPage() {
     setCctvChannels([]);
     setNewCctvChannelNumber('');
     setNewCctvChannelDesc('');
+    setNetworkPorts([]);
+    setNewNetworkPortNumber('');
+    setNewNetworkPortDesc('');
   };
 
   const handleAddEquipment = async (e: React.FormEvent) => {
@@ -242,31 +257,48 @@ export default function EquiposPage() {
 
     setLoading(true);
     try {
-      await addDoc(collection(db, 'equipos'), {
+      const docRef = await addDoc(collection(db, 'equipos'), {
         assetCode: assetCode.trim(),
         serialNumber: serialNumber.trim(),
-        equipmentType,
+        equipmentType: equipmentType === 'Otro' ? customEquipmentType.trim() : equipmentType,
         brandModel: brandModel.trim(),
         technicalSpecs: technicalSpecs.trim(),
         procesador: procesador.trim(),
         board: board.trim(),
         ram: ram.trim(),
         discoDuro: discoDuro.trim(),
-        monitor: hasMonitor ? monitor.trim() : '',
-        teclado: hasTeclado ? teclado.trim() : '',
-        mouse: hasMouse ? mouse.trim() : '',
+        monitor: hasMonitor ? (monitor.trim() || 'Sí') : '',
+        teclado: hasTeclado ? (teclado.trim() || 'Sí') : '',
+        mouse: hasMouse ? (mouse.trim() || 'Sí') : '',
         unidadCD,
         parlantes,
         tipoImpresora: equipmentType === 'Impresora' ? tipoImpresora : null,
-        ipAddress: (equipmentType === 'Impresora' || equipmentType === 'Control de Acceso') ? ipAddress.trim() : null,
-        ubicacion: (equipmentType === 'Control de Acceso' || equipmentType === 'CCTV') ? ubicacion.trim() : null,
+        ipAddress: (equipmentType === 'Impresora' || equipmentType === 'Control de Acceso' || equipmentType.includes('CCTV')) ? ipAddress.trim() : null,
+        ubicacion: (equipmentType === 'Control de Acceso' || equipmentType.includes('CCTV') || equipmentType.includes('Red')) ? ubicacion.trim() : null,
         accessControlList: equipmentType === 'Control de Acceso' ? accessControlList : null,
-        cctvChannels: equipmentType === 'CCTV' ? cctvChannels : null,
+        cctvChannels: equipmentType.includes('CCTV') ? cctvChannels : null,
+        networkPorts: (equipmentType.includes('Red') || ['Switch', 'Router', 'Access Point'].includes(equipmentType) || equipmentType === 'Otro') ? networkPorts : null,
+        totalNetworkPorts: (equipmentType.includes('Red') || ['Switch', 'Router', 'Access Point'].includes(equipmentType) || equipmentType === 'Otro') ? totalNetworkPorts : null,
         ownership,
         photoUrl: photoUrl || '',
         status: 'Dentro',
         createdAt: serverTimestamp()
       });
+      
+      if (assignedUser) {
+        const persona = personas.find(p => p.id === assignedUser);
+        if (persona) {
+          await addDoc(collection(db, 'asignaciones'), {
+            equipoId: docRef.id,
+            equipoDetalles: `${brandModel.trim()} (SN: ${serialNumber.trim()})`,
+            personaId: persona.id,
+            personaName: persona.name,
+            fechaAsignacion: serverTimestamp(),
+            estado: 'Asignado',
+            notas: 'Asignado durante el registro'
+          });
+        }
+      }
       
       resetForm();
       setShowAddModal(false);
@@ -423,7 +455,15 @@ export default function EquiposPage() {
     if (et.toUpperCase() === 'PORTATIL' || et.toUpperCase() === 'PORTÁTIL' || et.toUpperCase() === 'PC PORTATIL' || et.toUpperCase() === 'PC PORTÁTIL') et = 'Portátil';
     if (et.toUpperCase() === 'IMPRESORA') et = 'Impresora';
     
-    setEquipmentType(et);
+    const predefinedTypes = ['Portátil', 'PC Escritorio', 'Monitor', 'Tablet', 'Docking Station', 'Periférico', 'Impresora', 'Teléfono', 'Control de Acceso', 'CCTV', 'Equipo de Red', 'Switch', 'Router', 'Access Point', 'Equipo de Red (General)'];
+    if (predefinedTypes.includes(et)) {
+      setEquipmentType(et);
+      setCustomEquipmentType('');
+    } else {
+      setEquipmentType('Otro');
+      setCustomEquipmentType(et);
+    }
+    
     setBrandModel(equip.brandModel || '');
     setTechnicalSpecs(equip.technicalSpecs || '');
     setProcesador(equip.procesador || '');
@@ -450,6 +490,10 @@ export default function EquiposPage() {
     setCctvChannels(equip.cctvChannels || []);
     setNewCctvChannelNumber('');
     setNewCctvChannelDesc('');
+    setNetworkPorts(equip.networkPorts || []);
+    setTotalNetworkPorts(equip.totalNetworkPorts || 24);
+    setNewNetworkPortNumber('');
+    setNewNetworkPortDesc('');
     setOwnership(equip.ownership || 'Propio de la empresa');
     setPhotoUrl(equip.photoUrl || '');
 
@@ -477,26 +521,28 @@ export default function EquiposPage() {
       await updateDoc(doc(db, 'equipos', editingEquip.id), {
         assetCode: assetCode.trim(),
         serialNumber: serialNumber.trim(),
-        equipmentType,
+        equipmentType: equipmentType === 'Otro' ? customEquipmentType.trim() : equipmentType,
         brandModel: brandModel.trim(),
         technicalSpecs: technicalSpecs.trim(),
         procesador: procesador.trim(),
         board: board.trim(),
         ram: ram.trim(),
         discoDuro: discoDuro.trim(),
-        monitor: hasMonitor ? monitor.trim() : '',
-        teclado: hasTeclado ? teclado.trim() : '',
-        mouse: hasMouse ? mouse.trim() : '',
+        monitor: hasMonitor ? (monitor.trim() || 'Sí') : '',
+        teclado: hasTeclado ? (teclado.trim() || 'Sí') : '',
+        mouse: hasMouse ? (mouse.trim() || 'Sí') : '',
         unidadCD,
         parlantes,
         osVersion: osVersion.trim(),
         windowsLicense: windowsLicense.trim(),
         officeLicense: officeLicense.trim(),
         tipoImpresora: equipmentType === 'Impresora' ? tipoImpresora : null,
-        ipAddress: (equipmentType === 'Impresora' || equipmentType === 'Control de Acceso') ? ipAddress.trim() : null,
-        ubicacion: (equipmentType === 'Control de Acceso' || equipmentType === 'CCTV') ? ubicacion.trim() : null,
+        ipAddress: (equipmentType === 'Impresora' || equipmentType === 'Control de Acceso' || equipmentType.includes('CCTV')) ? ipAddress.trim() : null,
+        ubicacion: (equipmentType === 'Control de Acceso' || equipmentType.includes('CCTV') || equipmentType.includes('Red')) ? ubicacion.trim() : null,
         accessControlList: equipmentType === 'Control de Acceso' ? accessControlList : null,
-        cctvChannels: equipmentType === 'CCTV' ? cctvChannels : null,
+        cctvChannels: equipmentType.includes('CCTV') ? cctvChannels : null,
+        networkPorts: (equipmentType.includes('Red') || ['Switch', 'Router', 'Access Point'].includes(equipmentType) || equipmentType === 'Otro') ? networkPorts : null,
+        totalNetworkPorts: (equipmentType.includes('Red') || ['Switch', 'Router', 'Access Point'].includes(equipmentType) || equipmentType === 'Otro') ? totalNetworkPorts : null,
         ownership,
         photoUrl: photoUrl || ''
       });
@@ -546,6 +592,7 @@ export default function EquiposPage() {
       
       setEditingEquip(null);
       resetForm();
+      setCustomEquipmentType('');
     } catch (error: any) {
       console.error("Error updating equipment: ", error);
       alert("Hubo un error al actualizar el equipo: " + error.message);
@@ -651,9 +698,16 @@ export default function EquiposPage() {
       <div className="equipos-header-card">
         <h2><i className="fa-solid fa-server"></i> Inventario de Equipos</h2>
         {userRole === 'Admin' && (
-          <button className="btn-primary" onClick={() => setShowAddModal(true)}>
-            <i className="fa-solid fa-plus"></i> Nuevo Equipo
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            {activeModule === 'Impresoras' && (
+              <button className="btn-primary" style={{ background: '#10b981', border: '1px solid #059669' }} onClick={() => setShowTonerReport(true)}>
+                <i className="fa-solid fa-table"></i> Reporte Consumibles
+              </button>
+            )}
+            <button className="btn-primary" onClick={() => setShowAddModal(true)}>
+              <i className="fa-solid fa-plus"></i> Nuevo Equipo
+            </button>
+          </div>
         )}
       </div>
 
@@ -827,7 +881,10 @@ export default function EquiposPage() {
                 </div>
                 <div className="form-group">
                   <label>Tipo de Equipo *</label>
-                  <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
+                  <select value={equipmentType} onChange={e => {
+                    setEquipmentType(e.target.value);
+                    if (e.target.value !== 'Otro') setCustomEquipmentType('');
+                  }}>
                     <option value="Portátil">Portátil</option>
                     <option value="PC Escritorio">PC Escritorio</option>
                     <option value="Monitor">Monitor</option>
@@ -838,13 +895,35 @@ export default function EquiposPage() {
                     <option value="Teléfono">Teléfono</option>
                     <option value="Control de Acceso">Control de Acceso</option>
                     <option value="CCTV">CCTV (Cámara/NVR/DVR)</option>
-                    <option value="Equipo de Red">Equipo de Red (Switch/Router)</option>
+                    <option value="Equipo de Red">Equipo de Red (General)</option>
+                    <option value="Switch">Switch</option>
+                    <option value="Router">Router</option>
+                    <option value="Access Point">Access Point</option>
                     <option value="Otro">Otro</option>
                   </select>
+                  {equipmentType === 'Otro' && (
+                    <input 
+                      type="text" 
+                      value={customEquipmentType} 
+                      onChange={e => setCustomEquipmentType(e.target.value)} 
+                      placeholder="Escribe el tipo de equipo..." 
+                      style={{ marginTop: '10px' }}
+                      required 
+                    />
+                  )}
                 </div>
                 <div className="form-group">
                   <label>Marca y Modelo *</label>
                   <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
+                </div>
+                <div className="form-group">
+                  <label>Usuario Asignado (Opcional)</label>
+                  <select value={assignedUser} onChange={e => setAssignedUser(e.target.value)}>
+                    <option value="">-- Sin asignar --</option>
+                    {personas.map(p => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               </div>
               
@@ -981,7 +1060,7 @@ export default function EquiposPage() {
                   )}
                 </div>
               )}
-              {equipmentType === 'CCTV' && (
+              {equipmentType.includes('CCTV') && (
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de CCTV</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
@@ -1030,10 +1109,94 @@ export default function EquiposPage() {
                               <td style={{ padding: '8px', fontSize: '13px' }}>{item.descripcion}</td>
                               <td style={{ padding: '8px', textAlign: 'center' }}>
                                 <button type="button" onClick={() => {
+                                  const ch = cctvChannels[idx];
+                                  setNewCctvChannelNumber(ch.numero);
+                                  setNewCctvChannelDesc(ch.descripcion);
                                   const newList = [...cctvChannels];
                                   newList.splice(idx, 1);
                                   setCctvChannels(newList);
-                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                }} style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', marginRight: '10px' }} title="Editar">
+                                  <i className="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const newList = [...cctvChannels];
+                                  newList.splice(idx, 1);
+                                  setCctvChannels(newList);
+                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }} title="Eliminar">
+                                  <i className="fa-solid fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+              {equipmentType.includes('Red') && (
+                <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Red</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
+                  </div>
+                  
+                  <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Puertos / Conectores</h4>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                    <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
+                      <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                      <input type="text" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn-primary" 
+                      style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
+                      onClick={() => {
+                        if (newNetworkPortNumber.trim() && newNetworkPortDesc.trim()) {
+                          setNetworkPorts([...networkPorts, { numero: newNetworkPortNumber.trim(), descripcion: newNetworkPortDesc.trim() }]);
+                          setNewNetworkPortNumber('');
+                          setNewNetworkPortDesc('');
+                        }
+                      }}
+                    >
+                      <i className="fa-solid fa-plus"></i>
+                    </button>
+                  </div>
+                  
+                  {networkPorts.length > 0 && (
+                    <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
+                      <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
+                        <thead style={{ background: '#f3f4f6' }}>
+                          <tr>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'center', width: '60px' }}>Puerto</th>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'left' }}>Destino / Descripción</th>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'center', width: '60px' }}>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {networkPorts.map((item, idx) => (
+                            <tr key={idx} style={{ borderTop: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '8px', fontSize: '13px', textAlign: 'center', fontWeight: 'bold' }}>{item.numero}</td>
+                              <td style={{ padding: '8px', fontSize: '13px' }}>{item.descripcion}</td>
+                              <td style={{ padding: '8px', textAlign: 'center' }}>
+                                <button type="button" onClick={() => {
+                                  const ch = networkPorts[idx];
+                                  setNewNetworkPortNumber(ch.numero);
+                                  setNewNetworkPortDesc(ch.descripcion);
+                                  const newList = [...networkPorts];
+                                  newList.splice(idx, 1);
+                                  setNetworkPorts(newList);
+                                }} style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', marginRight: '10px' }} title="Editar">
+                                  <i className="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const newList = [...networkPorts];
+                                  newList.splice(idx, 1);
+                                  setNetworkPorts(newList);
+                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }} title="Eliminar">
                                   <i className="fa-solid fa-trash"></i>
                                 </button>
                               </td>
@@ -1097,7 +1260,10 @@ export default function EquiposPage() {
                 </div>
                 <div className="form-group">
                   <label>Tipo de Equipo *</label>
-                  <select value={equipmentType} onChange={e => setEquipmentType(e.target.value)}>
+                  <select value={equipmentType} onChange={e => {
+                    setEquipmentType(e.target.value);
+                    if (e.target.value !== 'Otro') setCustomEquipmentType('');
+                  }}>
                     <option value="Portátil">Portátil</option>
                     <option value="PC Escritorio">PC Escritorio</option>
                     <option value="Monitor">Monitor</option>
@@ -1108,9 +1274,22 @@ export default function EquiposPage() {
                     <option value="Teléfono">Teléfono</option>
                     <option value="Control de Acceso">Control de Acceso</option>
                     <option value="CCTV">CCTV (Cámara/NVR/DVR)</option>
-                    <option value="Equipo de Red">Equipo de Red (Switch/Router)</option>
+                    <option value="Equipo de Red">Equipo de Red (General)</option>
+                    <option value="Switch">Switch</option>
+                    <option value="Router">Router</option>
+                    <option value="Access Point">Access Point</option>
                     <option value="Otro">Otro</option>
                   </select>
+                  {equipmentType === 'Otro' && (
+                    <input 
+                      type="text" 
+                      value={customEquipmentType} 
+                      onChange={e => setCustomEquipmentType(e.target.value)} 
+                      placeholder="Escribe el tipo de equipo..." 
+                      style={{ marginTop: '10px' }}
+                      required 
+                    />
+                  )}
                 </div>
                 <div className="form-group">
                   <label>Marca y Modelo *</label>
@@ -1273,7 +1452,7 @@ export default function EquiposPage() {
                   )}
                 </div>
               )}
-              {equipmentType === 'CCTV' && (
+              {equipmentType.includes('CCTV') && (
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de CCTV</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
@@ -1295,7 +1474,9 @@ export default function EquiposPage() {
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (newCctvChannelNumber.trim() && newCctvChannelDesc.trim()) {
-                          setCctvChannels([...cctvChannels, { numero: newCctvChannelNumber.trim(), descripcion: newCctvChannelDesc.trim() }]);
+                          const updatedChannels = [...cctvChannels, { numero: newCctvChannelNumber.trim(), descripcion: newCctvChannelDesc.trim() }];
+                          updatedChannels.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          setCctvChannels(updatedChannels);
                           setNewCctvChannelNumber('');
                           setNewCctvChannelDesc('');
                         }
@@ -1322,10 +1503,155 @@ export default function EquiposPage() {
                               <td style={{ padding: '8px', fontSize: '13px' }}>{item.descripcion}</td>
                               <td style={{ padding: '8px', textAlign: 'center' }}>
                                 <button type="button" onClick={() => {
+                                  const ch = cctvChannels[idx];
+                                  setNewCctvChannelNumber(ch.numero);
+                                  setNewCctvChannelDesc(ch.descripcion);
                                   const newList = [...cctvChannels];
                                   newList.splice(idx, 1);
                                   setCctvChannels(newList);
-                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>
+                                }} style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', marginRight: '10px' }} title="Editar">
+                                  <i className="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const newList = [...cctvChannels];
+                                  newList.splice(idx, 1);
+                                  setCctvChannels(newList);
+                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }} title="Eliminar">
+                                  <i className="fa-solid fa-trash"></i>
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+              {(equipmentType.includes('Red') || ['Switch', 'Router', 'Access Point'].includes(equipmentType) || (equipmentType === 'Otro' && ['switch', 'router', 'access point'].some(t => customEquipmentType.toLowerCase().includes(t)))) && (
+                <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
+                  <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Red</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
+                  </div>
+                  
+                  <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Configuración de Puertos</h4>
+                  
+                  <div className="form-group" style={{ marginBottom: '15px' }}>
+                    <label>Total de Puertos del Equipo</label>
+                    <input type="number" value={totalNetworkPorts} onChange={e => setTotalNetworkPorts(parseInt(e.target.value) || 0)} min="1" max="96" style={{ maxWidth: '150px' }} />
+                  </div>
+
+                  {totalNetworkPorts > 0 && (
+                    <div style={{ background: '#1f2937', padding: '20px', borderRadius: '8px', overflowX: 'auto', marginBottom: '15px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', maxWidth: '100%', justifyContent: 'center' }}>
+                        {Array.from({ length: totalNetworkPorts }).map((_, i) => {
+                          const portNum = String(i + 1);
+                          const portData = networkPorts.find(p => p.numero === portNum);
+                          const isUsed = !!portData;
+                          return (
+                            <div 
+                              key={portNum}
+                              title={isUsed ? `Puerto ${portNum}: ${portData.descripcion}` : `Puerto ${portNum} (Libre)`}
+                              onClick={() => {
+                                setNewNetworkPortNumber(portNum);
+                                setNewNetworkPortDesc(isUsed ? portData.descripcion : '');
+                              }}
+                              style={{
+                                width: '30px', 
+                                height: '30px', 
+                                background: isUsed ? '#10b981' : '#4b5563', 
+                                border: '2px solid #374151', 
+                                borderRadius: '4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: 'white',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s'
+                              }}
+                            >
+                              {portNum}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div style={{ display: 'flex', gap: '15px', marginTop: '10px', fontSize: '12px', color: '#9ca3af' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '12px', background: '#10b981', borderRadius: '2px' }}></div> Ocupado</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '5px' }}><div style={{ width: '12px', height: '12px', background: '#4b5563', borderRadius: '2px' }}></div> Libre</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+                    <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
+                      <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
+                    </div>
+                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                      <input type="text" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                    </div>
+                    <button 
+                      type="button" 
+                      className="btn-primary" 
+                      style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
+                      onClick={() => {
+                        if (newNetworkPortNumber.trim() && newNetworkPortDesc.trim()) {
+                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: newNetworkPortDesc.trim() }];
+                          updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          setNetworkPorts(updatedPorts);
+                          setNewNetworkPortNumber('');
+                          setNewNetworkPortDesc('');
+                        }
+                      }}
+                    >
+                      <i className="fa-solid fa-save"></i>
+                    </button>
+                    {newNetworkPortNumber && networkPorts.some(p => p.numero === newNetworkPortNumber) && (
+                      <button 
+                        type="button" 
+                        style={{ padding: '8px 16px', height: '42px', marginTop: '0', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                        onClick={() => {
+                          const updatedPorts = networkPorts.filter(p => p.numero !== newNetworkPortNumber);
+                          setNetworkPorts(updatedPorts);
+                          setNewNetworkPortNumber('');
+                          setNewNetworkPortDesc('');
+                        }}
+                      >
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    )}
+                  </div>
+                  
+                  {networkPorts.length > 0 && (
+                    <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
+                      <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
+                        <thead style={{ background: '#f3f4f6' }}>
+                          <tr>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'center', width: '60px' }}>Puerto</th>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'left' }}>Destino / Descripción</th>
+                            <th style={{ padding: '8px', fontSize: '12px', textAlign: 'center', width: '60px' }}>Acción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {networkPorts.map((item, idx) => (
+                            <tr key={idx} style={{ borderTop: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '8px', fontSize: '13px', textAlign: 'center', fontWeight: 'bold' }}>{item.numero}</td>
+                              <td style={{ padding: '8px', fontSize: '13px' }}>{item.descripcion}</td>
+                              <td style={{ padding: '8px', textAlign: 'center' }}>
+                                <button type="button" onClick={() => {
+                                  setNewNetworkPortNumber(item.numero);
+                                  setNewNetworkPortDesc(item.descripcion);
+                                }} style={{ color: '#3b82f6', background: 'none', border: 'none', cursor: 'pointer', marginRight: '10px' }} title="Editar">
+                                  <i className="fa-solid fa-pen"></i>
+                                </button>
+                                <button type="button" onClick={() => {
+                                  const newList = [...networkPorts];
+                                  newList.splice(idx, 1);
+                                  setNetworkPorts(newList);
+                                }} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }} title="Eliminar">
                                   <i className="fa-solid fa-trash"></i>
                                 </button>
                               </td>
@@ -1599,7 +1925,14 @@ export default function EquiposPage() {
                           </tr>
                         </thead>
                         <tbody>
-                          {showHistoryModal.tonerHistory.map((t, idx) => (
+                          {showHistoryModal.tonerHistory
+                            .map((t, idx) => ({ t, idx }))
+                            .sort((a, b) => {
+                              const dateA = new Date(a.t.installationDate || a.t.date || 0).getTime();
+                              const dateB = new Date(b.t.installationDate || b.t.date || 0).getTime();
+                              return dateB - dateA;
+                            })
+                            .map(({ t, idx }) => (
                             <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
                               <td style={{ padding: '8px' }}>{t.installationDate || t.date || 'N/A'}</td>
                               <td style={{ padding: '8px' }}>{t.removalDate || 'N/A'}</td>
@@ -1629,31 +1962,100 @@ export default function EquiposPage() {
                 </>
               ) : (
                 <>
-                  <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '10px', color: '#374151' }}>Especificaciones Técnicas</h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px', color: '#4b5563', marginBottom: '20px', background: '#f9fafb', padding: '15px', borderRadius: '8px' }}>
-                    <div><strong>Procesador:</strong> {showHistoryModal.procesador || 'N/A'}</div>
-                    <div><strong>RAM:</strong> {showHistoryModal.ram || 'N/A'}</div>
-                    <div><strong>Disco Duro:</strong> {showHistoryModal.discoDuro || 'N/A'}</div>
-                    <div><strong>Board:</strong> {showHistoryModal.board || 'N/A'}</div>
-                    <div><strong>Monitor:</strong> {showHistoryModal.monitor || 'N/A'}</div>
-                    <div><strong>Teclado / Mouse:</strong> {showHistoryModal.teclado ? showHistoryModal.teclado : 'N/A'} / {showHistoryModal.mouse ? showHistoryModal.mouse : 'N/A'}</div>
-                    {showHistoryModal.technicalSpecs && (
-                      <div style={{ gridColumn: '1 / -1', marginTop: '5px' }}><strong>Observaciones:</strong> {showHistoryModal.technicalSpecs}</div>
-                    )}
-                  </div>
-                  
-                  {showHistoryModal.equipmentType === 'CCTV' && showHistoryModal.cctvChannels && showHistoryModal.cctvChannels.length > 0 && (
+                  {['Computador', 'Portátil', 'All In One', 'Servidor'].some(t => showHistoryModal.equipmentType?.includes(t)) && (
+                    <>
+                      <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '10px', color: '#374151' }}>Especificaciones Técnicas</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px', color: '#4b5563', marginBottom: '20px', background: '#f9fafb', padding: '15px', borderRadius: '8px' }}>
+                        <div><strong>Procesador:</strong> {showHistoryModal.procesador || 'N/A'}</div>
+                        <div><strong>RAM:</strong> {showHistoryModal.ram || 'N/A'}</div>
+                        <div><strong>Disco Duro:</strong> {showHistoryModal.discoDuro || 'N/A'}</div>
+                        <div><strong>Board:</strong> {showHistoryModal.board || 'N/A'}</div>
+                        <div><strong>Monitor:</strong> {showHistoryModal.monitor || 'N/A'}</div>
+                        <div><strong>Teclado / Mouse:</strong> {showHistoryModal.teclado ? showHistoryModal.teclado : 'N/A'} / {showHistoryModal.mouse ? showHistoryModal.mouse : 'N/A'}</div>
+                        {showHistoryModal.technicalSpecs && (
+                          <div style={{ gridColumn: '1 / -1', marginTop: '5px' }}><strong>Observaciones:</strong> {showHistoryModal.technicalSpecs}</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {!['Computador', 'Portátil', 'All In One', 'Servidor'].some(t => showHistoryModal.equipmentType?.includes(t)) && showHistoryModal.technicalSpecs && (
                     <div style={{ marginBottom: '20px' }}>
-                      <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px', color: '#374151' }}>Representación de Canales (CCTV)</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '15px' }}>
-                        {showHistoryModal.cctvChannels.map((ch, i) => (
-                          <div key={i} style={{ background: '#f3f4f6', border: '1px solid #d1d5db', borderRadius: '8px', padding: '10px', display: 'flex', flexDirection: 'column', gap: '5px', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #d1d5db', paddingBottom: '5px' }}>
-                              <strong style={{ color: '#111827', fontSize: '14px' }}>CH {ch.numero}</strong>
-                              <i className="fa-solid fa-video" style={{ color: '#4b5563' }}></i>
+                      <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '10px', color: '#374151' }}>Observaciones</h4>
+                      <div style={{ fontSize: '13px', color: '#4b5563', background: '#f9fafb', padding: '15px', borderRadius: '8px' }}>
+                        {showHistoryModal.technicalSpecs}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {showHistoryModal.equipmentType?.includes('CCTV') && showHistoryModal.cctvChannels && showHistoryModal.cctvChannels.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px' }}>
+                        <h4 style={{ margin: 0, color: '#374151' }}>Representación de Canales (Monitor CCTV)</h4>
+                        <select 
+                          value={cctvGridSize} 
+                          onChange={(e) => setCctvGridSize(e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '12px', background: '#f9fafb' }}
+                        >
+                          <option value="auto">Automático</option>
+                          <option value="2">2x2 (4 Canales)</option>
+                          <option value="3">3x3 (9 Canales)</option>
+                          <option value="4">4x4 (16 Canales)</option>
+                          <option value="5">5x5 (25 Canales)</option>
+                          <option value="6">6x6 (36 Canales)</option>
+                          <option value="8">8x4 (32 Canales)</option>
+                        </select>
+                      </div>
+                      
+                      {/* Monitor Bezel */}
+                      <div style={{ background: '#111827', padding: '10px', borderRadius: '8px', border: '2px solid #000', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)', margin: '0 auto' }}>
+                        {/* Monitor Screen / Grid */}
+                        <div style={{ display: 'grid', gridTemplateColumns: cctvGridSize === 'auto' ? 'repeat(auto-fill, minmax(130px, 1fr))' : `repeat(${cctvGridSize}, 1fr)`, gap: '2px', background: '#000' }}>
+                          {[...showHistoryModal.cctvChannels].sort((a,b) => parseInt(a.numero) - parseInt(b.numero)).map((ch, i) => (
+                            <div key={i} title={`CH ${ch.numero}: ${ch.descripcion}`} style={{ background: '#1f2937', aspectRatio: '16/9', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                              <i className="fa-solid fa-video" style={{ color: '#374151', fontSize: '24px' }}></i>
+                              
+                              <div style={{ position: 'absolute', top: '5px', left: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <div style={{ width: '6px', height: '6px', background: '#ef4444', borderRadius: '50%', boxShadow: '0 0 4px #ef4444' }}></div>
+                                <span style={{ color: '#fff', fontSize: '10px', fontWeight: 'bold', textShadow: '1px 1px 2px #000' }}>CH {ch.numero}</span>
+                              </div>
+                              
+                              <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', color: '#fff', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {ch.descripcion}
+                              </div>
                             </div>
-                            <div style={{ fontSize: '12px', color: '#4b5563', lineHeight: '1.4' }}>
-                              {ch.descripcion}
+                          ))}
+                        </div>
+                      </div>
+                      {/* Monitor Stand */}
+                      <div style={{ width: '40px', height: '15px', background: '#374151', margin: '0 auto', borderBottomLeftRadius: '4px', borderBottomRightRadius: '4px' }}></div>
+                      <div style={{ width: '120px', height: '6px', background: '#1f2937', margin: '0 auto', borderRadius: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></div>
+                    </div>
+                  )}
+                  {showHistoryModal.equipmentType?.includes('Red') && showHistoryModal.networkPorts && showHistoryModal.networkPorts.length > 0 && (
+                    <div style={{ marginBottom: '20px' }}>
+                      <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px', color: '#374151' }}>Representación de Puertos (Switch)</h4>
+                      <div style={{ background: '#cbd5e1', padding: '15px 20px', borderRadius: '6px', border: '3px solid #94a3b8', display: 'flex', flexWrap: 'wrap', gap: '8px', maxWidth: '100%', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.1)' }}>
+                        {[...showHistoryModal.networkPorts].sort((a,b) => parseInt(a.numero) - parseInt(b.numero)).map((port, i) => (
+                          <div key={i} title={`Puerto ${port.numero}: ${port.descripcion}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px' }}>
+                            <div style={{ fontSize: '11px', color: '#334155', fontWeight: 'bold', marginBottom: '3px' }}>{port.numero}</div>
+                            <div style={{ 
+                              width: '32px', height: '28px', 
+                              background: '#111827', 
+                              border: '1px solid #000',
+                              borderTop: '5px solid #475569',
+                              borderRadius: '3px',
+                              position: 'relative',
+                              cursor: 'help',
+                              boxShadow: 'inset 0 0 4px rgba(0,0,0,0.8)'
+                            }}>
+                              {/* LED */}
+                              <div style={{ position: 'absolute', top: '-9px', left: '2px', width: '5px', height: '5px', background: '#10b981', borderRadius: '50%', boxShadow: '0 0 4px #10b981' }}></div>
+                              {/* Port notch */}
+                              <div style={{ position: 'absolute', bottom: '0', left: '8px', width: '14px', height: '10px', background: '#334155', borderTopLeftRadius: '2px', borderTopRightRadius: '2px' }}></div>
+                            </div>
+                            <div style={{ fontSize: '10px', color: '#475569', marginTop: '6px', maxWidth: '45px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: '500' }}>
+                              {port.descripcion}
                             </div>
                           </div>
                         ))}
@@ -1695,6 +2097,98 @@ export default function EquiposPage() {
                   })}
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toner Report Modal */}
+      {showTonerReport && (
+        <div className="modal-overlay" onClick={() => setShowTonerReport(false)}>
+          <div className="modal-content hoja-vida-modal" style={{ maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+              <h3 style={{ margin: 0, color: '#1f2937' }}>
+                <i className="fa-solid fa-table"></i> Impresoras con Registro de Consumibles
+              </h3>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button 
+                  className="btn-primary" 
+                  style={{ background: tonerReportMode === 'actual' ? '#3b82f6' : '#8b5cf6', border: 'none' }}
+                  onClick={() => setTonerReportMode(tonerReportMode === 'actual' ? 'historico' : 'actual')}
+                >
+                  <i className="fa-solid fa-rotate"></i> Ver {tonerReportMode === 'actual' ? 'Histórico' : 'Tóner Actual'}
+                </button>
+                <button className="btn-primary" onClick={() => window.print()}><i className="fa-solid fa-print"></i> Imprimir</button>
+                <button className="btn-close-modal" style={{ position: 'relative', top: 'auto', right: 'auto' }} onClick={() => setShowTonerReport(false)}>
+                  <i className="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+            </div>
+
+            <div className="hoja-vida-print-area">
+              <div className="table-responsive">
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
+                      <th style={{ padding: '8px' }}>Ubicación</th>
+                      <th style={{ padding: '8px' }}>Marca y Modelo</th>
+                      <th style={{ padding: '8px' }}>Última Referencia</th>
+                      <th style={{ padding: '8px' }}>Último Cambio</th>
+                      <th style={{ padding: '8px' }}>Total Impresas {tonerReportMode === 'historico' ? '(Histórico)' : '(Actual)'}</th>
+                      <th style={{ padding: '8px' }}>Resmas {tonerReportMode === 'historico' ? '(Histórico)' : '(Actual)'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipments.filter(eq => eq.tonerHistory && eq.tonerHistory.length > 0).map(eq => {
+                      const latestToner = [...eq.tonerHistory!].sort((a,b) => {
+                         const dateA = new Date(a.installationDate || a.date || 0).getTime();
+                         const dateB = new Date(b.installationDate || b.date || 0).getTime();
+                         return dateB - dateA;
+                      })[0];
+                      const impresiones = tonerReportMode === 'historico'
+                        ? eq.tonerHistory!.reduce((sum, t) => sum + (t.totalPages || 0), 0)
+                        : (latestToner.totalPages || 0);
+
+                      let asigData = activeAssignments[eq.id];
+                      if (!asigData && eq.serialNumber) {
+                        const toolAssignedPersona = personas.find(p => 
+                          p.printerSerial?.trim().toLowerCase() === eq.serialNumber.trim().toLowerCase() ||
+                          (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === eq.serialNumber.trim().toLowerCase()))
+                        );
+                        if (toolAssignedPersona) {
+                          asigData = { personaId: toolAssignedPersona.id, personaName: toolAssignedPersona.name };
+                        }
+                      }
+
+                      let areaDisplay = eq.ubicacion || '-';
+                      if (asigData) {
+                        const foundPersona = personas.find(p => p.id === asigData.personaId);
+                        if (foundPersona && foundPersona.area) {
+                          areaDisplay = foundPersona.area;
+                        }
+                      }
+                      
+                      return (
+                        <tr key={eq.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                          <td style={{ padding: '8px', fontWeight: 'bold' }}>{areaDisplay}</td>
+                          <td style={{ padding: '8px' }}>{eq.brandModel}</td>
+                          <td style={{ padding: '8px' }}>{latestToner.reference || 'N/A'}</td>
+                          <td style={{ padding: '8px' }}>{latestToner.installationDate || latestToner.date || 'N/A'}</td>
+                          <td style={{ padding: '8px', fontWeight: 'bold', color: tonerReportMode === 'historico' ? '#047857' : getTonerColor(latestToner.reference || '', impresiones) }}>{impresiones}</td>
+                          <td style={{ padding: '8px', color: '#4f46e5' }}>{(impresiones / 500).toFixed(1)}</td>
+                        </tr>
+                      );
+                    })}
+                    {equipments.filter(eq => eq.tonerHistory && eq.tonerHistory.length > 0).length === 0 && (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '20px', color: '#6b7280' }}>
+                          No hay impresoras con registro de consumibles.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

@@ -81,7 +81,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="navbar-header">
         <div className="nav-brand">
-          <Link href="/dashboard/registros">
+          <Link href="/dashboard">
             <Image 
               src="/img/logo-contexsas.png" 
               alt="Contexsas Logo"
