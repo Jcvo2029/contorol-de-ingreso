@@ -221,19 +221,19 @@ export default function UsuariosPage() {
               {filtered.length > 0 ? (
                 filtered.map(usuario => (
                   <tr key={usuario.id}>
-                    <td><strong>{usuario.name}</strong></td>
-                    <td>{usuario.email}</td>
-                    <td>
+                    <td data-label="Nombre"><strong>{usuario.name}</strong></td>
+                    <td data-label="Correo">{usuario.email}</td>
+                    <td data-label="Rol">
                       <span className={`badge-role role-${(usuario.role || 'Empleado').toLowerCase()}`}>
                         {usuario.role || 'Empleado'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <span className={`badge-status status-${(usuario.status || 'Activo').toLowerCase()}`}>
                         {usuario.status || 'Activo'}
                       </span>
                     </td>
-                    <td>
+                    <td data-label="Acciones">
                       <div className="action-btns" style={{ justifyContent: 'center' }}>
                         <button className="btn-edit" onClick={() => startEditUsuario(usuario)} title="Editar">
                           <i className="fa-solid fa-pen-to-square"></i>

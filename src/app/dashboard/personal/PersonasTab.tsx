@@ -493,17 +493,17 @@ export default function PersonasPage() {
               ) : (
                 filtered.map((persona) => (
                   <tr key={persona.id} style={{ background: selectedPersonas.includes(persona.id) ? '#eff6ff' : 'transparent' }}>
-                    <td style={{ textAlign: 'center' }}>
+                    <td data-label="Seleccionar" style={{ textAlign: 'center' }}>
                       <input type="checkbox" checked={selectedPersonas.includes(persona.id)} onChange={() => toggleSelectPersona(persona.id)} />
                     </td>
-                    <td>
+                    <td data-label="ID">
                       <span style={{ fontFamily: 'monospace', background: '#f3f4f6', padding: '3px 8px', borderRadius: '6px', fontSize: '13px' }}>
                         {persona.idNumber?.replace(/^S\/N\s*/i, '') || 'N/A'}
                       </span>
                     </td>
-                    <td><strong>{persona.name}</strong></td>
-                    <td>{persona.area || persona.company || <span style={{ color: '#9ca3af' }}>—</span>}</td>
-                    <td>
+                    <td data-label="Nombre"><strong>{persona.name}</strong></td>
+                    <td data-label="Área / Empresa">{persona.area || persona.company || <span style={{ color: '#9ca3af' }}>—</span>}</td>
+                    <td data-label="Contacto">
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                         {persona.phone && <div style={{ fontSize: '13px', color: '#4b5563' }}><i className="fa-solid fa-phone" style={{ width: '16px' }}></i> {persona.phone}</div>}
                         {persona.email && <div style={{ fontSize: '13px', color: '#4b5563' }}><i className="fa-solid fa-envelope" style={{ width: '16px' }}></i> {persona.email}</div>}
@@ -513,7 +513,7 @@ export default function PersonasPage() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Licencias">
                       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         {(persona.office365License || persona.office365Email || persona.office365Key) ? (
                           <>
@@ -544,7 +544,7 @@ export default function PersonasPage() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Sistemas / Red">
                       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
                         {(persona.domainUser || persona.siesaUser) ? (
                           <>
@@ -565,7 +565,7 @@ export default function PersonasPage() {
                         )}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Estado">
                       <span style={{
                         fontSize: '12px', padding: '4px 8px', borderRadius: '4px', fontWeight: '600',
                         backgroundColor: persona.status === 'Inactivo' ? '#fee2e2' : '#d1fae5',
@@ -579,7 +579,7 @@ export default function PersonasPage() {
                         </div>
                       )}
                     </td>
-                    <td className="actions-cell">
+                    <td data-label="Acciones" className="actions-cell">
                       <button className="btn-qr" onClick={() => setViewProfilePersona(persona)} title="Ver Perfil Completo" style={{ background: '#e0f2fe', color: '#0284c7', border: '1px solid #bae6fd', marginRight: '6px' }}>
                         <i className="fa-solid fa-eye"></i>
                       </button>

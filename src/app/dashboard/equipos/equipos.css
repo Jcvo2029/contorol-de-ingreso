@@ -295,8 +295,8 @@
 }
 
 @media (max-width: 768px) {
-    .equipos-card {
-        padding: 20px 14px;
+    .equipos-header-card, .equipos-list-card {
+        padding: 16px 12px;
         border-radius: 12px;
     }
     .header-with-action {
@@ -311,6 +311,57 @@
     .modal-content {
         padding: 20px 16px;
         width: 95%;
+    }
+    .equipos-search-bar {
+        width: 100%;
+    }
+
+    /* Responsive Table to Cards */
+    .equipos-table, .equipos-table thead, .equipos-table tbody, .equipos-table th, .equipos-table td, .equipos-table tr { 
+        display: block; 
+    }
+    .equipos-table thead tr { 
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+    .equipos-table tr { 
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        margin-bottom: 16px;
+        background: #fff;
+        padding: 12px 10px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    }
+    .equipos-table td { 
+        border: none;
+        border-bottom: 1px solid #f3f4f6; 
+        position: relative;
+        padding: 10px 10px 10px 45%; 
+        text-align: right;
+        min-height: 40px;
+    }
+    .equipos-table td:last-child {
+        border-bottom: 0;
+    }
+    .equipos-table td:before { 
+        position: absolute;
+        top: 12px;
+        left: 10px;
+        width: 40%; 
+        padding-right: 10px; 
+        white-space: nowrap;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #6b7280;
+        content: attr(data-label);
+    }
+    .equipos-table td.actions-cell {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        flex-wrap: wrap;
     }
 }
 

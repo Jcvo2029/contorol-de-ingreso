@@ -150,21 +150,21 @@ export default function AreasPage() {
               ) : (
                 filteredAreas.map((area, idx) => (
                   <tr key={idx}>
-                    <td>
+                    <td data-label="Área / Departamento">
                       <strong>{area.name}</strong>
                     </td>
-                    <td>
+                    <td data-label="Total Empleados">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <i className="fa-solid fa-users" style={{ color: '#6b7280' }}></i> {area.personasCount}
                       </div>
                     </td>
-                    <td>
+                    <td data-label="Equipos Asignados">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <i className="fa-solid fa-laptop" style={{ color: '#6b7280' }}></i> {area.equiposCount}
                       </div>
                     </td>
-                    <td>
-                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <td data-label="Acciones">
+                      <div style={{ display: 'flex', justifyContent: 'center' }} className="actions-cell">
                         <button className="btn-view-area" onClick={() => setSelectedArea(area.name)}>
                           <i className="fa-solid fa-eye"></i> Ver Detalles
                         </button>

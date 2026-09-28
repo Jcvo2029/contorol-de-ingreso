@@ -6,6 +6,22 @@ import { QRCodeSVG } from 'qrcode.react';
 import SignatureCanvas from 'react-signature-canvas';
 import './equipos.css';
 
+const getEquipmentIcon = (type?: string) => {
+  if (!type) return 'fa-laptop';
+  const t = type.toLowerCase();
+  if (t.includes('escritorio')) return 'fa-desktop-alt';
+  if (t.includes('portátil') || t.includes('portatil')) return 'fa-laptop';
+  if (t.includes('monitor')) return 'fa-desktop';
+  if (t.includes('impresora')) return 'fa-print';
+  if (t.includes('teléfono') || t.includes('telefono')) return 'fa-phone';
+  if (t.includes('acceso')) return 'fa-id-card';
+  if (t.includes('cctv')) return 'fa-video';
+  if (t.includes('red') || t.includes('switch') || t.includes('router') || t.includes('access point')) return 'fa-network-wired';
+  if (t.includes('periférico') || t.includes('periferico') || t.includes('docking')) return 'fa-mouse';
+  if (t.includes('tablet')) return 'fa-tablet-alt';
+  return 'fa-box';
+};
+
 interface Equipment {
   id: string;
   assetCode: string;
@@ -36,7 +52,7 @@ interface Equipment {
   photoUrl?: string;
   status: string;
   createdAt?: any;
-  tonerHistory?: { date?: any; installationDate?: any; removalDate?: any; initialPages: number; finalPages: number; totalPages: number; reference?: string }[];
+  tonerHistory?: { date?: any; installationDate?: any; removalDate?: any; initialPages: number; finalPages: number; totalPages: number; reference?: string; signature?: string | null }[];
 }
 
 // Helper to determine Toner Status Color
@@ -295,15 +311,23 @@ export default function EquiposPage() {
       if (assignedUser) {
         const persona = personas.find(p => p.id === assignedUser);
         if (persona) {
-          await addDoc(collection(db, 'asignaciones'), {
-            equipoId: docRef.id,
-            equipoDetalles: `${brandModel.trim()} (SN: ${serialNumber.trim()})`,
-            personaId: persona.id,
-            personaName: persona.name,
-            fechaAsignacion: serverTimestamp(),
-            estado: 'Asignado',
-            notas: 'Asignado durante el registro'
-          });
+          const etUpper = (equipmentType === 'Otro' ? customEquipmentType : equipmentType).toUpperCase();
+          const isComputador = etUpper.includes('PC') || etUpper.includes('PORTÁTIL') || etUpper.includes('PORTATIL') || etUpper.includes('SERVIDOR') || etUpper.includes('ESCRITORIO');
+          
+          if (isComputador) {
+            await addDoc(collection(db, 'asignaciones'), {
+              equipoId: docRef.id,
+              equipoDetalles: `${brandModel.trim()} (SN: ${serialNumber.trim()})`,
+              personaId: persona.id,
+              personaName: persona.name,
+              fechaAsignacion: serverTimestamp(),
+              estado: 'Asignado',
+              notas: 'Asignado durante el registro'
+            });
+          } else if (equipmentType !== 'Impresora') {
+            const newTools = [...(persona.assignedTools || []), { serial: serialNumber.trim(), brandModel: brandModel.trim(), equipmentType: equipmentType === 'Otro' ? customEquipmentType : equipmentType }];
+            await updateDoc(doc(db, 'personas', persona.id), { assignedTools: newTools });
+          }
         }
       }
       
@@ -454,8 +478,8 @@ export default function EquiposPage() {
         if (document.documentElement.requestFullscreen) {
           await document.documentElement.requestFullscreen();
         }
-        if (screen.orientation && screen.orientation.lock) {
-          await screen.orientation.lock("landscape");
+        if (screen.orientation && (screen.orientation as any).lock) {
+          await (screen.orientation as any).lock("landscape");
         }
       } catch (e) {
         console.log("Landscape lock failed", e);
@@ -470,8 +494,8 @@ export default function EquiposPage() {
         if (document.fullscreenElement) {
           await document.exitFullscreen();
         }
-        if (screen.orientation && screen.orientation.unlock) {
-          screen.orientation.unlock();
+        if (screen.orientation && (screen.orientation as any).unlock) {
+          (screen.orientation as any).unlock();
         }
       } catch (e) {
         console.log("Exit fullscreen failed", e);
@@ -578,6 +602,16 @@ export default function EquiposPage() {
       if (toolPersona) initialPrinterUser = toolPersona.id;
     }
     setAssignedPrinterUser(initialPrinterUser);
+
+    let initialUser = '';
+    const asigData = activeAssignments[equip.id];
+    if (asigData) {
+      initialUser = asigData.personaId;
+    } else if (et !== 'Impresora' && equip.serialNumber) {
+      const toolPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()));
+      if (toolPersona) initialUser = toolPersona.id;
+    }
+    setAssignedUser(initialUser);
   };
 
   const handleUpdateEquipment = async (e: React.FormEvent) => {
@@ -662,6 +696,42 @@ export default function EquiposPage() {
         }
       }
       
+      const etUpper = (equipmentType === 'Otro' ? customEquipmentType : equipmentType).toUpperCase();
+      const isComputador = etUpper.includes('PC') || etUpper.includes('PORTÁTIL') || etUpper.includes('PORTATIL') || etUpper.includes('SERVIDOR') || etUpper.includes('ESCRITORIO');
+      
+      if (equipmentType !== 'Impresora' && !isComputador) {
+        const asigData = activeAssignments[editingEquip.id];
+        if (asigData) {
+          const qOld = query(collection(db, 'asignaciones'), where('equipoId', '==', editingEquip.id), where('estado', '==', 'Asignado'));
+          const snapOld = await getDocs(qOld);
+          for (const docSnap of snapOld.docs) {
+            await updateDoc(doc(db, 'asignaciones', docSnap.id), { 
+              estado: 'Devuelto', 
+              fechaDevolucion: serverTimestamp(), 
+              observacionesDevolucion: 'Convertido a Herramienta Tecnológica' 
+            });
+          }
+        }
+
+        const oldPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase()));
+        
+        if (oldPersona && oldPersona.id !== assignedUser) {
+          const updatedTools = oldPersona.assignedTools.filter((at:any) => at.serial?.trim().toLowerCase() !== editingEquip.serialNumber?.trim().toLowerCase());
+          await updateDoc(doc(db, 'personas', oldPersona.id), { assignedTools: updatedTools });
+        }
+        
+        if (assignedUser) {
+          const newPersona = personas.find(p => p.id === assignedUser);
+          if (newPersona) {
+            const hasTool = newPersona.assignedTools?.some((at:any) => at.serial?.trim().toLowerCase() === serialNumber.trim().toLowerCase());
+            if (!hasTool) {
+              const newTools = [...(newPersona.assignedTools || []), { serial: serialNumber.trim(), brandModel: brandModel.trim(), equipmentType: equipmentType === 'Otro' ? customEquipmentType : equipmentType }];
+              await updateDoc(doc(db, 'personas', assignedUser), { assignedTools: newTools });
+            }
+          }
+        }
+      }
+      
       setEditingEquip(null);
       resetForm();
       setCustomEquipmentType('');
@@ -686,13 +756,20 @@ export default function EquiposPage() {
     const isAcceso = et.includes('CONTROL DE ACCESO') || et.includes('ACCESO') || bm.includes('CONTROL DE ACCESO');
     const isCCTV = et.includes('CCTV') || et.includes('CÁMARA') || et.includes('CAMARA') || et.includes('DVR') || et.includes('NVR') || bm.includes('CCTV') || bm.includes('DVR') || bm.includes('NVR');
     const isRedes = et.includes('RED') || et.includes('SWITCH') || et.includes('ROUTER') || et.includes('PATCH PANEL') || bm.includes('SWITCH') || et.includes('ACCESS POINT');
+    
+    // Explicitly define what a Computador is
+    const isComputador = et.includes('PC') || et.includes('PORTÁTIL') || et.includes('PORTATIL') || et.includes('SERVIDOR') || et.includes('ESCRITORIO');
+    
+    // If it doesn't match any of the main categories, it falls into "Otros Dispositivos"
+    const belongsToMainCategory = isComputador || isImpresora || isTelefono || isAcceso || isCCTV || isRedes;
 
-    if (activeModule === 'Computadores' && (isImpresora || isTelefono || isAcceso || isCCTV || isRedes)) return false;
+    if (activeModule === 'Computadores' && !isComputador) return false;
     if (activeModule === 'Impresoras' && !isImpresora) return false;
     if (activeModule === 'Teléfonos' && !isTelefono) return false;
     if (activeModule === 'Control de Accesos' && !isAcceso) return false;
     if (activeModule === 'CCTV' && !isCCTV) return false;
     if (activeModule === 'Redes' && !isRedes) return false;
+    if (activeModule === 'Otros Dispositivos' && belongsToMainCategory) return false;
 
     let assignedName = '';
     const asigData = activeAssignments[equip.id];
@@ -720,7 +797,7 @@ export default function EquiposPage() {
 
   return (
     <div className="equipos-container">
-      <div className="no-print" style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', flexWrap: 'wrap' }}>
+      <div className="no-print" style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
         <button 
           onClick={() => setActiveModule('Computadores')}
           style={{ 
@@ -729,7 +806,17 @@ export default function EquiposPage() {
             color: activeModule === 'Computadores' ? '#fff' : '#374151', 
             cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
           }}>
-          <i className="fa-solid fa-laptop" style={{ marginRight: '8px' }}></i> Computadores y Otros
+          <i className="fa-solid fa-laptop" style={{ marginRight: '8px' }}></i> Computadores
+        </button>
+        <button 
+          onClick={() => setActiveModule('Otros Dispositivos')}
+          style={{ 
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
+            background: activeModule === 'Otros Dispositivos' ? '#4f46e5' : '#fff', 
+            color: activeModule === 'Otros Dispositivos' ? '#fff' : '#374151', 
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s', whiteSpace: 'nowrap'
+          }}>
+          <i className="fa-solid fa-mouse" style={{ marginRight: '8px' }}></i> Otros Dispositivos
         </button>
         <button 
           onClick={() => setActiveModule('Impresoras')}
@@ -854,11 +941,11 @@ export default function EquiposPage() {
 
                   return (
                     <tr key={equip.id}>
-                      <td>
+                      <td data-label="Código Activo">
                         <strong>{equip.assetCode || '-'}</strong>
                         <div style={{ fontSize: '12px', color: '#6b7280' }}>{equip.equipmentType}</div>
                       </td>
-                      <td>
+                      <td data-label="Foto / Dispositivo">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           {equip.photoUrl ? (
                             <img 
@@ -870,7 +957,7 @@ export default function EquiposPage() {
                             />
                           ) : (
                             <div style={{ width: '48px', height: '48px', borderRadius: '8px', background: '#f3f4f6', color: '#9ca3af', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px', border: '1px solid #e5e7eb' }}>
-                              <i className="fa-solid fa-laptop"></i>
+                              <i className={`fa-solid ${getEquipmentIcon(equip.equipmentType)}`}></i>
                             </div>
                           )}
                           <div>
@@ -896,7 +983,7 @@ export default function EquiposPage() {
                           </div>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Estado">
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                           <span style={{
                             fontSize: '12px', padding: '4px 8px', borderRadius: '4px', fontWeight: '600', width: 'fit-content',
@@ -907,7 +994,7 @@ export default function EquiposPage() {
                           </span>
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Usuario Asignado">
                         {asigData ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#374151', fontSize: '13px' }}>
                             <i className="fa-solid fa-user-check" style={{ color: '#4f46e5' }}></i> 
@@ -917,7 +1004,7 @@ export default function EquiposPage() {
                           <span style={{ color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>Sin asignar</span>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Propiedad">
                         <span style={{
                           fontSize: '12px', padding: '4px 8px', borderRadius: '9999px', fontWeight: '600',
                           backgroundColor: equip.ownership === 'Propio de la empresa' ? '#e0e7ff' : '#f3f4f6',
@@ -926,8 +1013,8 @@ export default function EquiposPage() {
                           {equip.ownership || 'No definido'}
                         </span>
                       </td>
-                    <td className="actions-cell">
-                      <button className="btn-qr" onClick={() => handleShowHistory(equip)} title="Hoja de Vida" style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #eab308', marginRight: '6px' }}>
+                      <td data-label="Acciones" className="actions-cell">
+                        <button className="btn-qr" onClick={() => handleShowHistory(equip)} title="Hoja de Vida" style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #eab308', marginRight: '6px' }}>
                         <i className="fa-solid fa-file-lines"></i> Hoja de Vida
                       </button>
                       <button className="btn-qr" onClick={() => setSelectedQR(equip)} title="Ver QR">
@@ -1777,31 +1864,41 @@ export default function EquiposPage() {
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>Usuario Asignado (Solo Lectura)</label>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f3f4f6', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                    <span style={{ color: '#4b5563', fontSize: '14px' }}>
-                      {(() => {
-                        if (!editingEquip) return 'No disponible.';
-                        let asigData = activeAssignments[editingEquip.id];
-                        let isHerramienta = false;
-                        if (!asigData && editingEquip.serialNumber) {
-                          const toolPersona = personas.find(p => 
-                            p.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase() ||
-                            (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase()))
-                          );
-                          if (toolPersona) { asigData = { personaId: toolPersona.id, personaName: toolPersona.name }; isHerramienta = true; }
-                        }
-                        if (asigData) {
-                          const found = personas.find(p => p.id === asigData.personaId);
-                          return (found ? found.name : asigData.personaName) + (isHerramienta ? ' (Vía Herramientas)' : '');
-                        }
-                        return 'Sin asignar actualmente';
-                      })()}
-                    </span>
-                    <a href="/dashboard/asignaciones" target="_blank" style={{ fontSize: '12px', background: 'white', border: '1px solid #d1d5db', padding: '4px 10px', borderRadius: '6px', textDecoration: 'none', color: '#374151', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <i className="fa-solid fa-arrow-up-right-from-square"></i> Gestionar Asignación
-                    </a>
-                  </div>
+                  <label>{((equipmentType === 'Otro' ? customEquipmentType : equipmentType) || '').toUpperCase().match(/(PC|PORTÁTIL|PORTATIL|SERVIDOR|ESCRITORIO)/) ? 'Usuario Asignado (Solo Lectura)' : 'Asignar a Usuario Principal'}</label>
+                  {((equipmentType === 'Otro' ? customEquipmentType : equipmentType) || '').toUpperCase().match(/(PC|PORTÁTIL|PORTATIL|SERVIDOR|ESCRITORIO)/) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: '#f3f4f6', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
+                      <span style={{ color: '#4b5563', fontSize: '14px' }}>
+                        {(() => {
+                          if (!editingEquip) return 'No disponible.';
+                          let asigData = activeAssignments[editingEquip.id];
+                          let isHerramienta = false;
+                          if (!asigData && editingEquip.serialNumber) {
+                            const toolPersona = personas.find(p => 
+                              p.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase() ||
+                              (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase())) ||
+                              (p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase()))
+                            );
+                            if (toolPersona) { asigData = { personaId: toolPersona.id, personaName: toolPersona.name }; isHerramienta = true; }
+                          }
+                          if (asigData) {
+                            const found = personas.find(p => p.id === asigData.personaId);
+                            return (found ? found.name : asigData.personaName) + (isHerramienta ? ' (Vía Herramientas)' : '');
+                          }
+                          return 'Sin asignar actualmente';
+                        })()}
+                      </span>
+                      <a href="/dashboard/asignaciones" target="_blank" style={{ fontSize: '12px', background: 'white', border: '1px solid #d1d5db', padding: '4px 10px', borderRadius: '6px', textDecoration: 'none', color: '#374151', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <i className="fa-solid fa-arrow-up-right-from-square"></i> Gestionar Asignación
+                      </a>
+                    </div>
+                  ) : (
+                    <select value={assignedUser} onChange={e => setAssignedUser(e.target.value)}>
+                      <option value="">-- Sin asignar --</option>
+                      {personas.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               )}
 
@@ -1888,7 +1985,7 @@ export default function EquiposPage() {
                   <img src={showHistoryModal.photoUrl} alt="Foto Equipo" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb' }} />
                 ) : (
                   <div style={{ width: '120px', height: '120px', borderRadius: '8px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', color: '#9ca3af' }}>
-                    <i className="fa-solid fa-laptop"></i>
+                    <i className={`fa-solid ${getEquipmentIcon(showHistoryModal.equipmentType)}`}></i>
                   </div>
                 )}
                 
@@ -2413,7 +2510,7 @@ export default function EquiposPage() {
                 <div style={{ borderTop: '1px solid #000', width: '400px', margin: '0 auto', paddingTop: '10px', textAlign: 'center' }}>
                   {showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
+                      <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature as string} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
                       <button className="no-print" onClick={async () => {
                         if (!confirm("¿Seguro que deseas eliminar esta firma?")) return;
                         const idx = showTonerActa.tonerIndex;

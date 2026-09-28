@@ -20,6 +20,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [sharedPrinters, setSharedPrinters] = useState<any[]>([]);
+  const [otrosEquipos, setOtrosEquipos] = useState<any[]>([]);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [signingRole, setSigningRole] = useState<'colaborador' | 'entrega' | 'gerencia' | null>(null);
@@ -118,6 +119,29 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           if (asigData.equipoId) {
             const equiDoc = await getDoc(doc(db, 'equipos', asigData.equipoId));
             if (equiDoc.exists()) setEquipo(equiDoc.data());
+          }
+
+          // Fetch other equipments assigned to this persona
+          if (asigData.personaId) {
+            const qOtrasAsig = query(collection(db, 'asignaciones'), where('personaId', '==', asigData.personaId), where('estado', '==', 'Asignado'));
+            const otrasAsigSnap = await getDocs(qOtrasAsig);
+            let otrosEquiposList: any[] = [];
+            for (const d of otrasAsigSnap.docs) {
+              if (d.id !== id) { // Exclude current assignment
+                const oa = d.data();
+                if (oa.equipoId) {
+                  const eDoc = await getDoc(doc(db, 'equipos', oa.equipoId));
+                  if (eDoc.exists()) {
+                    const eData = eDoc.data();
+                    // Optional: You could filter to only show peripherals, but showing all other assigned items is usually desired in the Acta tools section
+                    otrosEquiposList.push({ ...eData, asignacionId: d.id });
+                  }
+                }
+              }
+            }
+            if (otrosEquiposList.length > 0) {
+              setOtrosEquipos(otrosEquiposList);
+            }
           }
         }
       } catch (error) {
@@ -362,7 +386,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           </div>
         </div>
 
-        {(persona?.office365Email || persona?.office365License || persona?.domainUser || persona?.siesaUser || persona?.office365Key || persona?.printerBrandModel || (persona?.assignedPrinters && persona?.assignedPrinters.length > 0) || sharedPrinters.length > 0) && (
+        {(persona?.office365Email || persona?.office365License || persona?.domainUser || persona?.siesaUser || persona?.office365Key || persona?.printerBrandModel || (persona?.assignedPrinters && persona?.assignedPrinters.length > 0) || sharedPrinters.length > 0 || otrosEquipos.length > 0) && (
           <div className="acta-section">
             <h3>Herramientas Tecnológicas Asignadas</h3>
             <div className="table-responsive">
@@ -422,6 +446,22 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(sp.brandModel)}</td>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Hardware</td>
                     <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{sp.serial || 'N/A'}</td>
+                  </tr>
+                ))}
+                {persona?.assignedTools?.map((at: any, i: number) => (
+                  <tr key={`at-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{formatText(at.equipmentType) || 'Herramienta Tecnológica'}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(at.brandModel)}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Hardware</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{at.serial || 'N/A'}</td>
+                  </tr>
+                ))}
+                {otrosEquipos.map((oe: any, i: number) => (
+                  <tr key={`otro-${i}`} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{formatText(oe.equipmentType) || 'Periférico / Accesorio'}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'capitalize' }}>{formatText(oe.brandModel)}</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>Hardware</td>
+                    <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>{oe.serialNumber || 'N/A'}</td>
                   </tr>
                 ))}
               </tbody>
