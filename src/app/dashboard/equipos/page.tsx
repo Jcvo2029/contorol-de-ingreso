@@ -381,7 +381,7 @@ export default function EquiposPage() {
       setAddingToner(false);
 
       // Open Acta Toner Modal for signature
-      if (!updatedHistory[addedIndex].signature) {
+      if (!(updatedHistory[addedIndex] as any).signature) {
         openTonerActa(updatedEquip, addedIndex);
       }
       
