@@ -381,8 +381,8 @@ export default function EquiposPage() {
       setAddingToner(false);
 
       // Open Acta Toner Modal for signature
-      if (!newEntry.signature) {
-        setShowTonerActa({ equip: updatedEquip, tonerIndex: addedIndex });
+      if (!updatedHistory[addedIndex].signature) {
+        openTonerActa(updatedEquip, addedIndex);
       }
       
     } catch (error: any) {
@@ -444,6 +444,38 @@ export default function EquiposPage() {
       setTonerFinal('');
       setEditingTonerIndex(null);
       setAddingToner(true);
+    }
+  };
+
+  const openTonerActa = async (equip: Equipment, index: number) => {
+    setShowTonerActa({ equip, tonerIndex: index });
+    if (window.innerWidth <= 768) {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock("landscape");
+        }
+      } catch (e) {
+        console.log("Landscape lock failed", e);
+      }
+    }
+  };
+
+  const closeTonerActa = async () => {
+    setShowTonerActa(null);
+    if (window.innerWidth <= 768) {
+      try {
+        if (document.fullscreenElement) {
+          await document.exitFullscreen();
+        }
+        if (screen.orientation && screen.orientation.unlock) {
+          screen.orientation.unlock();
+        }
+      } catch (e) {
+        console.log("Exit fullscreen failed", e);
+      }
     }
   };
 
@@ -2000,11 +2032,11 @@ export default function EquiposPage() {
                               <td style={{ padding: '8px', color: '#4f46e5' }}>{(t.totalPages / 500).toFixed(1)}</td>
                               <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
                                 {t.signature ? (
-                                  <button onClick={() => setShowTonerActa({ equip: showHistoryModal, tonerIndex: idx })} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                  <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
                                     <i className="fa-solid fa-file-signature"></i> Ver Acta
                                   </button>
                                 ) : (
-                                  <button onClick={() => setShowTonerActa({ equip: showHistoryModal, tonerIndex: idx })} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                  <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
                                     <i className="fa-solid fa-pen-nib"></i> Firmar
                                   </button>
                                 )}
@@ -2302,13 +2334,13 @@ export default function EquiposPage() {
         }
 
         return (
-          <div className="modal-overlay" onClick={() => setShowTonerActa(null)}>
+          <div className="modal-overlay" onClick={closeTonerActa}>
             <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }} onClick={e => e.stopPropagation()}>
               <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
                 <h3 style={{ margin: 0, color: '#1f2937' }}><i className="fa-solid fa-file-contract"></i> Acta de Cambio de Tóner</h3>
                 <div>
                   <button className="btn-primary" onClick={() => window.print()} style={{ marginRight: '10px' }}><i className="fa-solid fa-print"></i> Imprimir</button>
-                  <button className="btn-secondary" onClick={() => setShowTonerActa(null)}>Cerrar</button>
+                  <button className="btn-secondary" onClick={closeTonerActa}>Cerrar</button>
                 </div>
               </div>
 
@@ -2378,7 +2410,7 @@ export default function EquiposPage() {
               </div>
 
               <div style={{ marginTop: '50px' }}>
-                <div style={{ borderTop: '1px solid #000', width: '250px', paddingTop: '10px', textAlign: 'center' }}>
+                <div style={{ borderTop: '1px solid #000', width: '400px', margin: '0 auto', paddingTop: '10px', textAlign: 'center' }}>
                   {showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? (
                     <div style={{ position: 'relative', display: 'inline-block' }}>
                       <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
@@ -2402,10 +2434,10 @@ export default function EquiposPage() {
                   ) : (
                     <div className="no-print">
                       <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6b7280' }}>Dibuje su firma aquí:</p>
-                      <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', background: '#f9fafb', padding: '10px', marginBottom: '10px' }}>
+                      <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', background: '#f9fafb', padding: '10px', marginBottom: '10px', display: 'flex', justifyContent: 'center' }}>
                         <SignatureCanvas 
                           ref={sigCanvasToner}
-                          canvasProps={{ width: 250, height: 100, className: 'sigCanvasToner' }}
+                          canvasProps={{ width: 400, height: 150, className: 'sigCanvasToner' }}
                           penColor="black"
                         />
                       </div>
