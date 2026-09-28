@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, updateDoc, deleteDoc, doc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
+import SignatureCanvas from 'react-signature-canvas';
 import './equipos.css';
 
 interface Equipment {
@@ -99,6 +100,7 @@ export default function EquiposPage() {
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [userRole, setUserRole] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
   const [search, setSearch] = useState('');
   const [activeModule, setActiveModule] = useState('Computadores');
   const [activeAssignments, setActiveAssignments] = useState<Record<string, { personaId: string, personaName: string }>>({});
@@ -115,6 +117,9 @@ export default function EquiposPage() {
   const [tonerReference, setTonerReference] = useState('');
   const [addingToner, setAddingToner] = useState(false);
   const [editingTonerIndex, setEditingTonerIndex] = useState<number | null>(null);
+  const [showTonerActa, setShowTonerActa] = useState<{ equip: Equipment, tonerIndex: number } | null>(null);
+  const sigCanvasToner = useRef<any>(null);
+  const [tonerSignatureError, setTonerSignatureError] = useState('');
   const [cctvGridSize, setCctvGridSize] = useState<string>('auto');
   const [showTonerReport, setShowTonerReport] = useState(false);
   const [tonerReportMode, setTonerReportMode] = useState<'actual'|'historico'>('actual');
@@ -166,6 +171,7 @@ export default function EquiposPage() {
       try {
         const parsed = JSON.parse(storedUser);
         setUserRole(parsed.role || 'Empleado');
+        setUserName(parsed.nombre || parsed.name || 'Desconocido');
       } catch (err) {
         console.error("Error parsing user from localStorage:", err);
       }
@@ -321,7 +327,10 @@ export default function EquiposPage() {
   };
 
   const handleAddToner = async () => {
-    if (!showHistoryModal || !tonerInstallationDate || !tonerRemovalDate || !tonerInitial || !tonerFinal) return;
+    if (!showHistoryModal || !tonerInstallationDate || !tonerRemovalDate || !tonerInitial || !tonerFinal) {
+      alert("Por favor completa todos los campos (Fechas y Páginas) antes de guardar.");
+      return;
+    }
     
     const initial = parseInt(tonerInitial);
     const final = parseInt(tonerFinal);
@@ -332,29 +341,37 @@ export default function EquiposPage() {
       return;
     }
 
-    try {
-      const newEntry = { 
-        installationDate: tonerInstallationDate, 
-        removalDate: tonerRemovalDate, 
-        initialPages: initial, 
-        finalPages: final, 
-        totalPages: total, 
-        reference: tonerReference 
-      };
+      try {
+        const iDateFmt = tonerInstallationDate.replace('T', ' ');
+        const rDateFmt = tonerRemovalDate.replace('T', ' ');
+
+        const newEntry = { 
+          installationDate: iDateFmt, 
+          removalDate: rDateFmt, 
+          initialPages: initial, 
+          finalPages: final, 
+          totalPages: total, 
+          reference: tonerReference 
+        };
       
       let updatedHistory = [...(showHistoryModal.tonerHistory || [])];
+      let addedIndex = -1;
       
       if (editingTonerIndex !== null) {
-        updatedHistory[editingTonerIndex] = newEntry;
+        updatedHistory[editingTonerIndex] = { ...updatedHistory[editingTonerIndex], ...newEntry };
+        addedIndex = editingTonerIndex;
       } else {
         updatedHistory.push(newEntry);
+        addedIndex = updatedHistory.length - 1;
       }
       
       await updateDoc(doc(db, 'equipos', showHistoryModal.id), {
         tonerHistory: updatedHistory
       });
       
-      setShowHistoryModal({ ...showHistoryModal, tonerHistory: updatedHistory });
+      const updatedEquip = { ...showHistoryModal, tonerHistory: updatedHistory };
+      setShowHistoryModal(updatedEquip);
+      
       setTonerInstallationDate('');
       setTonerRemovalDate('');
       setTonerInitial('');
@@ -362,6 +379,11 @@ export default function EquiposPage() {
       setTonerReference('');
       setEditingTonerIndex(null);
       setAddingToner(false);
+
+      // Open Acta Toner Modal for signature
+      if (!newEntry.signature) {
+        setShowTonerActa({ equip: updatedEquip, tonerIndex: addedIndex });
+      }
       
     } catch (error: any) {
       alert("Error al guardar tóner: " + error.message);
@@ -371,8 +393,17 @@ export default function EquiposPage() {
   const handleEditToner = (index: number) => {
     if (!showHistoryModal || !showHistoryModal.tonerHistory) return;
     const item = showHistoryModal.tonerHistory[index];
-    setTonerInstallationDate(item.installationDate || item.date || '');
-    setTonerRemovalDate(item.removalDate || '');
+    
+    let iDate = item.installationDate || item.date || '';
+    if (iDate && iDate.length === 10) iDate += 'T00:00';
+    else if (iDate && iDate.includes(' ')) iDate = iDate.replace(' ', 'T');
+    
+    let rDate = item.removalDate || '';
+    if (rDate && rDate.length === 10) rDate += 'T00:00';
+    else if (rDate && rDate.includes(' ')) rDate = rDate.replace(' ', 'T');
+
+    setTonerInstallationDate(iDate);
+    setTonerRemovalDate(rDate);
     setTonerInitial(item.initialPages.toString());
     setTonerFinal(item.finalPages.toString());
     setTonerReference(item.reference || '');
@@ -390,18 +421,26 @@ export default function EquiposPage() {
       setTonerFinal('');
       setTonerReference('');
     } else {
+      const now = new Date();
+      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+      const nowLocal = now.toISOString().slice(0, 16);
+
       if (showHistoryModal && showHistoryModal.tonerHistory && showHistoryModal.tonerHistory.length > 0) {
         // Sort history by date/removalDate or just take the last element
         const lastEntry = showHistoryModal.tonerHistory[showHistoryModal.tonerHistory.length - 1];
-        setTonerInstallationDate(lastEntry.removalDate || '');
+        let rDate = lastEntry.removalDate || '';
+        if (rDate && rDate.length === 10) rDate += 'T00:00';
+        else if (rDate && rDate.includes(' ')) rDate = rDate.replace(' ', 'T');
+        
+        setTonerInstallationDate(rDate);
         setTonerInitial(lastEntry.finalPages.toString());
         setTonerReference(lastEntry.reference || '');
       } else {
-        setTonerInstallationDate('');
+        setTonerInstallationDate(nowLocal);
         setTonerInitial('');
         setTonerReference('');
       }
-      setTonerRemovalDate('');
+      setTonerRemovalDate(nowLocal);
       setTonerFinal('');
       setEditingTonerIndex(null);
       setAddingToner(true);
@@ -623,17 +662,33 @@ export default function EquiposPage() {
     if (activeModule === 'CCTV' && !isCCTV) return false;
     if (activeModule === 'Redes' && !isRedes) return false;
 
+    let assignedName = '';
+    const asigData = activeAssignments[equip.id];
+    if (asigData) {
+      const p = personas.find(pers => pers.id === asigData.personaId);
+      assignedName = p ? p.name : asigData.personaName;
+    } else if (equip.serialNumber) {
+      const toolAssignedPersona = personas.find(p => 
+        p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
+        (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+      );
+      if (toolAssignedPersona) {
+        assignedName = toolAssignedPersona.name;
+      }
+    }
+
     return (equip.brandModel || '').toLowerCase().includes(search.toLowerCase()) ||
     (equip.assetCode || '').toLowerCase().includes(search.toLowerCase()) ||
     (equip.serialNumber || '').toLowerCase().includes(search.toLowerCase()) ||
     (equip.equipmentType || '').toLowerCase().includes(search.toLowerCase()) ||
     (equip.ownership || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.ipAddress || '').toLowerCase().includes(search.toLowerCase());
+    (equip.ipAddress || '').toLowerCase().includes(search.toLowerCase()) ||
+    assignedName.toLowerCase().includes(search.toLowerCase());
   });
 
   return (
     <div className="equipos-container">
-      <div style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', flexWrap: 'wrap' }}>
+      <div className="no-print" style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', flexWrap: 'wrap' }}>
         <button 
           onClick={() => setActiveModule('Computadores')}
           style={{ 
@@ -718,7 +773,7 @@ export default function EquiposPage() {
           <i className="fa-solid fa-magnifying-glass"></i>
           <input
             type="text"
-            placeholder="Buscar por código, serial, marca, tipo o IP..."
+            placeholder="Buscar por código, serial, marca, tipo, IP o usuario asignado..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
@@ -1775,7 +1830,7 @@ export default function EquiposPage() {
       )}
 
       {/* History Modal (Hoja de Vida) */}
-      {showHistoryModal && (
+      {showHistoryModal && !showTonerActa && (
         <div className="modal-overlay" onClick={() => setShowHistoryModal(null)}>
           <div className="modal-content hoja-vida-modal" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
             <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -1878,11 +1933,11 @@ export default function EquiposPage() {
                     <div className="no-print" style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', marginBottom: '15px', display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                       <div>
                         <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>F. Instalación</label>
-                        <input type="date" value={tonerInstallationDate} onChange={e => setTonerInstallationDate(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                        <input type="datetime-local" value={tonerInstallationDate} onChange={e => setTonerInstallationDate(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>F. Retiro</label>
-                        <input type="date" value={tonerRemovalDate} onChange={e => setTonerRemovalDate(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
+                        <input type="datetime-local" value={tonerRemovalDate} onChange={e => setTonerRemovalDate(e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid #d1d5db' }} />
                       </div>
                       <div>
                         <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px' }}>Referencia</label>
@@ -1922,6 +1977,7 @@ export default function EquiposPage() {
                             <th style={{ padding: '8px' }}>Pág. Finales</th>
                             <th style={{ padding: '8px' }}>Total Impresas</th>
                             <th style={{ padding: '8px' }}>Resmas Usadas</th>
+                            <th className="no-print" style={{ padding: '8px', textAlign: 'center' }}>Firma</th>
                             <th className="no-print" style={{ padding: '8px', textAlign: 'center' }}>Acciones</th>
                           </tr>
                         </thead>
@@ -1942,6 +1998,17 @@ export default function EquiposPage() {
                               <td style={{ padding: '8px' }}>{t.finalPages}</td>
                               <td style={{ padding: '8px', fontWeight: 'bold', color: getTonerColor(t.reference || '', t.totalPages) }}>{t.totalPages}</td>
                               <td style={{ padding: '8px', color: '#4f46e5' }}>{(t.totalPages / 500).toFixed(1)}</td>
+                              <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
+                                {t.signature ? (
+                                  <button onClick={() => setShowTonerActa({ equip: showHistoryModal, tonerIndex: idx })} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                    <i className="fa-solid fa-file-signature"></i> Ver Acta
+                                  </button>
+                                ) : (
+                                  <button onClick={() => setShowTonerActa({ equip: showHistoryModal, tonerIndex: idx })} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                    <i className="fa-solid fa-pen-nib"></i> Firmar
+                                  </button>
+                                )}
+                              </td>
                               <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
                                 <button onClick={() => handleEditToner(idx)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '8px' }} title="Editar">
                                   <i className="fa-solid fa-pen"></i>
@@ -2127,14 +2194,34 @@ export default function EquiposPage() {
             </div>
 
             <div className="hoja-vida-print-area">
+              <div style={{ display: 'none' }} className="print-header">
+                <img src="/img/logo-contexsas.png" alt="Contex" style={{ height: '50px', marginBottom: '10px' }} />
+                <h2 style={{ margin: '0 0 15px 0' }}>Reporte de Consumibles</h2>
+              </div>
+              <style>{`
+                @media print {
+                  @page { margin: 10mm; }
+                  .print-header { display: grid !important; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 15px !important; width: 100%; }
+                  .print-header img { grid-column: 3; justify-self: end; height: 40px !important; margin: 0 !important; }
+                  .print-header h2 { grid-column: 2; font-size: 18px !important; margin: 0 !important; text-align: center; }
+                  .modal-content { max-height: none !important; overflow: visible !important; box-shadow: none !important; border: none !important; }
+                  .modal-overlay { position: absolute !important; padding: 0 !important; background: transparent !important; }
+                  body { overflow: visible !important; }
+                  .table-responsive { overflow: visible !important; }
+                  .table-responsive table { font-size: 11px !important; }
+                  .table-responsive th, .table-responsive td { padding: 4px 6px !important; }
+                }
+              `}</style>
               <div className="table-responsive">
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
                   <thead>
                     <tr style={{ background: '#f3f4f6', textAlign: 'left' }}>
                       <th style={{ padding: '8px' }}>Ubicación</th>
+                      <th style={{ padding: '8px' }}>Usuario Asignado</th>
                       <th style={{ padding: '8px' }}>Marca y Modelo</th>
                       <th style={{ padding: '8px' }}>Última Referencia</th>
                       <th style={{ padding: '8px' }}>Último Cambio</th>
+                      <th style={{ padding: '8px' }}>F. Actualización</th>
                       <th style={{ padding: '8px' }}>Total Impresas {tonerReportMode === 'historico' ? '(Histórico)' : '(Actual)'}</th>
                       <th style={{ padding: '8px' }}>Resmas {tonerReportMode === 'historico' ? '(Histórico)' : '(Actual)'}</th>
                     </tr>
@@ -2172,9 +2259,11 @@ export default function EquiposPage() {
                       return (
                         <tr key={eq.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{areaDisplay}</td>
+                          <td style={{ padding: '8px' }}>{asigData ? asigData.personaName : 'Sin Asignar'}</td>
                           <td style={{ padding: '8px' }}>{eq.brandModel}</td>
                           <td style={{ padding: '8px' }}>{latestToner.reference || 'N/A'}</td>
                           <td style={{ padding: '8px' }}>{latestToner.installationDate || latestToner.date || 'N/A'}</td>
+                          <td style={{ padding: '8px' }}>{latestToner.removalDate || 'N/A'}</td>
                           <td style={{ padding: '8px', fontWeight: 'bold', color: tonerReportMode === 'historico' ? '#047857' : getTonerColor(latestToner.reference || '', impresiones) }}>{impresiones}</td>
                           <td style={{ padding: '8px', color: '#4f46e5' }}>{(impresiones / 500).toFixed(1)}</td>
                         </tr>
@@ -2194,6 +2283,174 @@ export default function EquiposPage() {
           </div>
         </div>
       )}
+
+      {/* Toner Acta Modal */}
+      {showTonerActa && (() => {
+        let actaArea = showTonerActa.equip.ubicacion || 'N/A';
+        const asig = activeAssignments[showTonerActa.equip.id];
+        if (asig) {
+          const pers = personas.find(p => p.id === asig.personaId);
+          if (pers && pers.area) actaArea = pers.area;
+        } else if (showTonerActa.equip.serialNumber) {
+           const toolAssignedPersona = personas.find(p => 
+             p.printerSerial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase() ||
+             (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase()))
+           );
+           if (toolAssignedPersona && toolAssignedPersona.area) {
+             actaArea = toolAssignedPersona.area;
+           }
+        }
+
+        return (
+          <div className="modal-overlay" onClick={() => setShowTonerActa(null)}>
+            <div className="modal-content" style={{ maxWidth: '800px', maxHeight: '90vh', overflowY: 'auto', padding: '30px' }} onClick={e => e.stopPropagation()}>
+              <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#1f2937' }}><i className="fa-solid fa-file-contract"></i> Acta de Cambio de Tóner</h3>
+                <div>
+                  <button className="btn-primary" onClick={() => window.print()} style={{ marginRight: '10px' }}><i className="fa-solid fa-print"></i> Imprimir</button>
+                  <button className="btn-secondary" onClick={() => setShowTonerActa(null)}>Cerrar</button>
+                </div>
+              </div>
+
+              <div className="hoja-vida-print-area">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '15px', marginBottom: '20px' }}>
+                  <div>
+                    <h2 style={{ margin: '0 0 5px 0', color: '#1f2937', fontSize: '22px' }}>Acta de Cambio de Tóner</h2>
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Fecha y Hora de Emisión: {new Date().toLocaleDateString()} - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                    <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Registrado por: {userName}</p>
+                  </div>
+                <img src="/img/logo-contexsas.png" alt="Contex Logo" style={{ height: '50px' }} />
+              </div>
+
+              <div style={{ marginBottom: '20px', lineHeight: '1.6', fontSize: '14px', color: '#374151' }}>
+                <p>
+                  Por medio del presente documento se deja constancia del cambio de tóner de la impresora detallada a continuación. 
+                  El usuario certifica que la información registrada corresponde al momento del retiro/instalación del consumible.
+                </p>
+                
+                <h4 style={{ margin: '15px 0 10px 0', color: '#111827' }}>Detalles del Equipo</h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Marca y Modelo</td>
+                      <td style={{ padding: '8px' }}>{showTonerActa.equip.brandModel}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Código Activo</td>
+                      <td style={{ padding: '8px' }}>{showTonerActa.equip.assetCode || 'N/A'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Serial</td>
+                      <td style={{ padding: '8px' }}>{showTonerActa.equip.serialNumber || 'N/A'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Ubicación / Área</td>
+                      <td style={{ padding: '8px' }}>{actaArea}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <h4 style={{ margin: '20px 0 10px 0', color: '#111827' }}>Detalles del Consumible</h4>
+                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+                  <tbody>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Referencia de Tóner</td>
+                      <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.reference || 'N/A'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Fecha Instalación</td>
+                      <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.installationDate || 'N/A'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Contador de Páginas (Final)</td>
+                      <td style={{ padding: '8px', fontWeight: 'bold' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.finalPages || '0'}</td>
+                    </tr>
+                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Total Impresas (Tóner Anterior)</td>
+                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#047857' }}>
+                        {showTonerActa.tonerIndex > 0 
+                          ? showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex - 1]?.totalPages || '0'
+                          : '0'}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <div style={{ marginTop: '50px' }}>
+                <div style={{ borderTop: '1px solid #000', width: '250px', paddingTop: '10px', textAlign: 'center' }}>
+                  {showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? (
+                    <div style={{ position: 'relative', display: 'inline-block' }}>
+                      <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
+                      <button className="no-print" onClick={async () => {
+                        if (!confirm("¿Seguro que deseas eliminar esta firma?")) return;
+                        const idx = showTonerActa.tonerIndex;
+                        const newHistory = [...showTonerActa.equip.tonerHistory!];
+                        newHistory[idx] = { ...newHistory[idx], signature: null };
+                        try {
+                          await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), { tonerHistory: newHistory });
+                          const updatedEquip = { ...showTonerActa.equip, tonerHistory: newHistory };
+                          setShowTonerActa({ equip: updatedEquip, tonerIndex: idx });
+                          if (showHistoryModal && showHistoryModal.id === updatedEquip.id) setShowHistoryModal(updatedEquip);
+                        } catch (e: any) {
+                          alert('Error al eliminar firma: ' + e.message);
+                        }
+                      }} style={{ position: 'absolute', top: '0', right: '-25px', padding: '4px 6px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }} title="Eliminar Firma">
+                        <i className="fa-solid fa-trash"></i>
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="no-print">
+                      <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6b7280' }}>Dibuje su firma aquí:</p>
+                      <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', background: '#f9fafb', padding: '10px', marginBottom: '10px' }}>
+                        <SignatureCanvas 
+                          ref={sigCanvasToner}
+                          canvasProps={{ width: 250, height: 100, className: 'sigCanvasToner' }}
+                          penColor="black"
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                        <button onClick={() => sigCanvasToner.current?.clear()} style={{ padding: '5px 10px', fontSize: '12px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Limpiar</button>
+                        <button onClick={async () => {
+                          if (sigCanvasToner.current?.isEmpty()) {
+                            setTonerSignatureError('Firma requerida');
+                            return;
+                          }
+                          const sigData = sigCanvasToner.current?.getTrimmedCanvas().toDataURL('image/png');
+                          const idx = showTonerActa.tonerIndex;
+                          const newHistory = [...showTonerActa.equip.tonerHistory!];
+                          newHistory[idx] = { ...newHistory[idx], signature: sigData };
+                          
+                          try {
+                            await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), {
+                              tonerHistory: newHistory
+                            });
+                            const updatedEquip = { ...showTonerActa.equip, tonerHistory: newHistory };
+                            setShowTonerActa({ equip: updatedEquip, tonerIndex: idx });
+                            // If the history modal is open, also update its state
+                            if (showHistoryModal && showHistoryModal.id === updatedEquip.id) {
+                              setShowHistoryModal(updatedEquip);
+                            }
+                          } catch (e: any) {
+                            alert('Error al guardar firma: ' + e.message);
+                          }
+                        }} style={{ padding: '5px 10px', fontSize: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          Guardar Firma
+                        </button>
+                      </div>
+                      {tonerSignatureError && <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{tonerSignatureError}</p>}
+                    </div>
+                  )}
+                  <div style={{ marginTop: showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? '10px' : '20px' }}>
+                    <strong>Firma del Usuario Responsable</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        );
+      })()}
     </div>
   );
 }

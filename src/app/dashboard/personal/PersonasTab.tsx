@@ -42,6 +42,8 @@ export default function PersonasPage() {
 
   // View Profile Modal State
   const [viewProfilePersona, setViewProfilePersona] = useState<Persona | null>(null);
+  const [profileAssignments, setProfileAssignments] = useState<any[]>([]);
+  const [loadingProfileAssignments, setLoadingProfileAssignments] = useState(false);
 
   // Form state
   const [idNumber, setIdNumber] = useState('');
@@ -80,6 +82,21 @@ export default function PersonasPage() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (viewProfilePersona) {
+      setLoadingProfileAssignments(true);
+      const qAsig = query(collection(db, 'asignaciones'), where('personaId', '==', viewProfilePersona.id), where('estado', '==', 'Asignado'));
+      const unsub = onSnapshot(qAsig, (snapshot) => {
+        const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        setProfileAssignments(data);
+        setLoadingProfileAssignments(false);
+      });
+      return () => unsub();
+    } else {
+      setProfileAssignments([]);
+    }
+  }, [viewProfilePersona]);
 
   const handleSave = async () => {
     if (!idNumber.trim() || !name.trim()) {
@@ -755,6 +772,37 @@ export default function PersonasPage() {
                 )}
               </div>
             </div>
+
+            <h4 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '8px', color: '#374151', marginTop: '25px', marginBottom: '15px' }}>
+              <i className="fa-solid fa-laptop" style={{ marginRight: '8px' }}></i>Equipos y Herramientas Asignadas
+            </h4>
+            
+            {loadingProfileAssignments ? (
+              <p style={{ margin: 0, color: '#6b7280', fontSize: '14px', fontStyle: 'italic' }}>Cargando asignaciones...</p>
+            ) : profileAssignments.length === 0 ? (
+              <p style={{ margin: 0, color: '#94a3b8', fontSize: '14px', fontStyle: 'italic' }}>Sin equipos asignados actualmente</p>
+            ) : (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                {profileAssignments.map(asig => {
+                  const date = asig.fechaAsignacion?.toDate ? asig.fechaAsignacion.toDate() : new Date(asig.fechaAsignacion);
+                  return (
+                    <div key={asig.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '12px 15px' }}>
+                      <div>
+                        <p style={{ margin: '0 0 4px 0', fontWeight: 'bold', color: '#1e40af' }}>{asig.equipoAssetCode} <span style={{ fontWeight: 'normal', color: '#3b82f6', fontSize: '12px' }}>({asig.equipoBrandModel})</span></p>
+                        <p style={{ margin: 0, fontSize: '12px', color: '#64748b' }}>
+                          <i className="fa-solid fa-calendar-check" style={{ marginRight: '5px' }}></i>
+                          Asignado el: {date.toLocaleDateString()}
+                        </p>
+                      </div>
+                      <span style={{ fontSize: '11px', padding: '3px 8px', borderRadius: '20px', background: '#dbeafe', color: '#1d4ed8', fontWeight: 'bold' }}>
+                        Activo
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '30px' }}>
               <button className="btn-primary" onClick={() => setViewProfilePersona(null)}>Cerrar</button>

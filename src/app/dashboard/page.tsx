@@ -31,6 +31,7 @@ interface Metrics {
   licenciasBreakdown: { name: string, value: number }[];
   impresorasBreakdown: { name: string, value: number }[];
   pcBreakdown: { name: string, value: number }[];
+  redBreakdown: { name: string, value: number }[];
   totalCamaras: number;
   totalImpresiones: number;
   usuariosSiesaConAsignacion: number;
@@ -62,6 +63,7 @@ export default function DashboardPage() {
     licenciasBreakdown: [],
     impresorasBreakdown: [],
     pcBreakdown: [],
+    redBreakdown: [],
     totalCamaras: 0,
     totalImpresiones: 0,
     usuariosSiesaConAsignacion: 0,
@@ -148,6 +150,7 @@ export default function DashboardPage() {
       const typesMap: Record<string, number> = {};
       const pcMap: Record<string, number> = {};
       const printerMap: Record<string, number> = {};
+      const redMap: Record<string, number> = {};
 
       snapshot.forEach((docSnap) => {
         total++;
@@ -161,9 +164,7 @@ export default function DashboardPage() {
 
         if (['Portátil', 'Computador de Mesa', 'All in One', 'Mini PC', 'PC Escritorio'].includes(t)) {
           pcMap[t] = (pcMap[t] || 0) + 1;
-        }
-
-        if (t === 'Impresora') {
+        } else if (t === 'Impresora') {
           const pt = d.tipoImpresora || 'Otra';
           printerMap[pt] = (printerMap[pt] || 0) + 1;
 
@@ -174,6 +175,8 @@ export default function DashboardPage() {
               }
             });
           }
+        } else {
+          redMap[t] = (redMap[t] || 0) + 1;
         }
       });
       
@@ -185,6 +188,7 @@ export default function DashboardPage() {
         equiposPorTipo: Object.keys(typesMap).map(k => ({ name: k, value: typesMap[k] })),
         pcBreakdown: Object.keys(pcMap).map(k => ({ name: k, value: pcMap[k] })),
         impresorasBreakdown: Object.keys(printerMap).map(k => ({ name: k, value: printerMap[k] })),
+        redBreakdown: Object.keys(redMap).map(k => ({ name: k, value: redMap[k] })),
         totalCamaras: camaras,
         totalImpresiones: impresiones
       }));
@@ -391,6 +395,20 @@ export default function DashboardPage() {
                         </Pie>
                         <Tooltip />
                       </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                <div className="welcome-card" style={{ padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <h3 style={{ fontSize: '14px', color: '#374151', marginBottom: '10px' }}>Otros Dispositivos</h3>
+                  <div style={{ width: '100%', height: '220px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={metrics.redBreakdown} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                        <XAxis dataKey="name" fontSize={10} interval={0} angle={-25} textAnchor="end" height={50} />
+                        <YAxis allowDecimals={false} fontSize={10} width={25} />
+                        <Tooltip cursor={{fill: '#f3f4f6'}} />
+                        <Bar dataKey="value" fill="#14b8a6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
