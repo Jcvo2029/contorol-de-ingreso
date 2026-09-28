@@ -2033,7 +2033,7 @@ export default function EquiposPage() {
                       <div style={{ width: '120px', height: '6px', background: '#1f2937', margin: '0 auto', borderRadius: '2px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}></div>
                     </div>
                   )}
-                  {showHistoryModal.equipmentType?.includes('Red') && showHistoryModal.networkPorts && showHistoryModal.networkPorts.length > 0 && (
+                  {((showHistoryModal.equipmentType || '').includes('Red') || ['Switch', 'Router', 'Access Point'].includes(showHistoryModal.equipmentType || '') || (showHistoryModal.equipmentType || '').toLowerCase().includes('switch') || (showHistoryModal.equipmentType || '').toLowerCase().includes('router')) && showHistoryModal.networkPorts && showHistoryModal.networkPorts.length > 0 && (
                     <div style={{ marginBottom: '20px' }}>
                       <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px', color: '#374151' }}>Representación de Puertos (Switch)</h4>
                       <div style={{ background: '#cbd5e1', padding: '15px 20px', borderRadius: '6px', border: '3px solid #94a3b8', display: 'flex', flexWrap: 'wrap', gap: '8px', maxWidth: '100%', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.1)' }}>
