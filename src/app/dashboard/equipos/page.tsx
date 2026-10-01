@@ -825,6 +825,25 @@ export default function EquiposPage() {
     ...equipments.flatMap(e => e.cctvChannels?.map(c => c.descripcion) || [])
   ])).filter(Boolean).sort() as string[];
 
+  const getAssignedUserName = (equip: Equipment) => {
+    let assignedName = '';
+    const asigData = activeAssignments[equip.id];
+    if (asigData) {
+      const p = personas.find(pers => pers.id === asigData.personaId);
+      assignedName = p ? p.name : asigData.personaName;
+    } else if (equip.serialNumber) {
+      const toolAssignedPersona = personas.find(p => 
+        p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
+        (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase())) ||
+        (p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+      );
+      if (toolAssignedPersona) {
+        assignedName = toolAssignedPersona.name;
+      }
+    }
+    return assignedName ? ` [Usuario: ${assignedName}]` : '';
+  };
+
   return (
     <div className="equipos-container">
       <datalist id="destinos-sugeridos">
@@ -1383,7 +1402,7 @@ export default function EquiposPage() {
                         >
                           <option value="">Seleccionar equipo...</option>
                           {equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => (
-                            <option key={eq.id} value={eq.id}>{eq.brandModel} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}</option>
+                            <option key={eq.id} value={eq.id}>{eq.brandModel} - S/N: {eq.serialNumber} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}{getAssignedUserName(eq)}</option>
                           ))}
                         </select>
                         {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
