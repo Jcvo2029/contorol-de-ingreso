@@ -182,6 +182,10 @@ export default function EquiposPage() {
   const [newNetworkPortDesc, setNewNetworkPortDesc] = useState('');
   const [totalNetworkPorts, setTotalNetworkPorts] = useState(24);
 
+  const [selectedConnectionDevice, setSelectedConnectionDevice] = useState('');
+  const [selectedConnectionPort, setSelectedConnectionPort] = useState('');
+  const [inputMode, setInputMode] = useState<'manual'|'inventory'>('inventory');
+
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     if (storedUser) {
@@ -270,6 +274,9 @@ export default function EquiposPage() {
     setNetworkPorts([]);
     setNewNetworkPortNumber('');
     setNewNetworkPortDesc('');
+    setSelectedConnectionDevice('');
+    setSelectedConnectionPort('');
+    setInputMode('inventory');
   };
 
   const handleAddEquipment = async (e: React.FormEvent) => {
@@ -1351,18 +1358,74 @@ export default function EquiposPage() {
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
                       <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
-                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                    
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <select value={inputMode} onChange={e=>setInputMode(e.target.value as any)} style={{ width: '110px' }}>
+                        <option value="inventory">Inventario</option>
+                        <option value="manual">Texto</option>
+                      </select>
                     </div>
+
+                    {inputMode === 'manual' ? (
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                      </div>
+                    ) : (
+                      <div style={{ flex: 1, display: 'flex', gap: '5px' }}>
+                        <select 
+                          className="form-group" 
+                          style={{ flex: 1, marginBottom: 0 }}
+                          value={selectedConnectionDevice} 
+                          onChange={e => {
+                            setSelectedConnectionDevice(e.target.value);
+                            setSelectedConnectionPort('');
+                          }}
+                        >
+                          <option value="">Seleccionar equipo...</option>
+                          {equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => (
+                            <option key={eq.id} value={eq.id}>{eq.brandModel} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}</option>
+                          ))}
+                        </select>
+                        {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
+                          <select 
+                            className="form-group" 
+                            style={{ width: '80px', marginBottom: 0 }}
+                            value={selectedConnectionPort} 
+                            onChange={e => setSelectedConnectionPort(e.target.value)}
+                          >
+                            <option value="">Puerto</option>
+                            {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
+                              <option key={i} value={i + 1}>{i + 1}</option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </div>
+                    )}
+
                     <button 
                       type="button" 
                       className="btn-primary" 
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
-                        if (newNetworkPortNumber.trim() && newNetworkPortDesc.trim()) {
-                          setNetworkPorts([...networkPorts, { numero: newNetworkPortNumber.trim(), descripcion: newNetworkPortDesc.trim() }]);
+                        let finalDesc = newNetworkPortDesc.trim();
+                        if (inputMode === 'inventory' && selectedConnectionDevice) {
+                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                          if (eq) {
+                            finalDesc = `${eq.brandModel}`;
+                            if (eq.totalNetworkPorts && selectedConnectionPort) {
+                              finalDesc += ` - P${selectedConnectionPort}`;
+                            }
+                          }
+                        }
+
+                        if (newNetworkPortNumber.trim() && finalDesc) {
+                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: finalDesc }];
+                          updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
+                          setSelectedConnectionDevice('');
+                          setSelectedConnectionPort('');
                         }
                       }}
                     >
@@ -1794,20 +1857,74 @@ export default function EquiposPage() {
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
                       <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
-                    <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                    
+                    <div className="form-group" style={{ marginBottom: 0 }}>
+                      <select value={inputMode} onChange={e=>setInputMode(e.target.value as any)} style={{ width: '110px' }}>
+                        <option value="inventory">Inventario</option>
+                        <option value="manual">Texto</option>
+                      </select>
                     </div>
+
+                    {inputMode === 'manual' ? (
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                      </div>
+                    ) : (
+                      <div style={{ flex: 1, display: 'flex', gap: '5px' }}>
+                        <select 
+                          className="form-group" 
+                          style={{ flex: 1, marginBottom: 0 }}
+                          value={selectedConnectionDevice} 
+                          onChange={e => {
+                            setSelectedConnectionDevice(e.target.value);
+                            setSelectedConnectionPort('');
+                          }}
+                        >
+                          <option value="">Seleccionar equipo...</option>
+                          {equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => (
+                            <option key={eq.id} value={eq.id}>{eq.brandModel} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}</option>
+                          ))}
+                        </select>
+                        {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
+                          <select 
+                            className="form-group" 
+                            style={{ width: '80px', marginBottom: 0 }}
+                            value={selectedConnectionPort} 
+                            onChange={e => setSelectedConnectionPort(e.target.value)}
+                          >
+                            <option value="">Puerto</option>
+                            {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
+                              <option key={i} value={i + 1}>{i + 1}</option>
+                            ))}
+                          </select>
+                        ) : null}
+                      </div>
+                    )}
+
                     <button 
                       type="button" 
                       className="btn-primary" 
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
-                        if (newNetworkPortNumber.trim() && newNetworkPortDesc.trim()) {
-                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: newNetworkPortDesc.trim() }];
+                        let finalDesc = newNetworkPortDesc.trim();
+                        if (inputMode === 'inventory' && selectedConnectionDevice) {
+                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                          if (eq) {
+                            finalDesc = `${eq.brandModel}`;
+                            if (eq.totalNetworkPorts && selectedConnectionPort) {
+                              finalDesc += ` - P${selectedConnectionPort}`;
+                            }
+                          }
+                        }
+
+                        if (newNetworkPortNumber.trim() && finalDesc) {
+                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: finalDesc }];
                           updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
                           setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
+                          setSelectedConnectionDevice('');
+                          setSelectedConnectionPort('');
                         }
                       }}
                     >
