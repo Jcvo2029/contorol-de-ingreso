@@ -125,6 +125,7 @@ export default function EquiposPage() {
   // History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState<Equipment | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
+  const [maintenanceHistoryData, setMaintenanceHistoryData] = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [tonerInstallationDate, setTonerInstallationDate] = useState('');
   const [tonerRemovalDate, setTonerRemovalDate] = useState('');
@@ -522,17 +523,27 @@ export default function EquiposPage() {
     setShowHistoryModal(equip);
     setLoadingHistory(true);
     setHistoryData([]);
+    setMaintenanceHistoryData([]);
     try {
       const qAsig = query(collection(db, 'asignaciones'), where('equipoId', '==', equip.id));
       const asigSnapshot = await getDocs(qAsig);
       const data = asigSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as any);
-      // Sort by fechaAsignacion descending
       data.sort((a, b) => {
         const timeA = a.fechaAsignacion?.toMillis ? a.fechaAsignacion.toMillis() : 0;
         const timeB = b.fechaAsignacion?.toMillis ? b.fechaAsignacion.toMillis() : 0;
         return timeB - timeA;
       });
       setHistoryData(data);
+
+      const qMant = query(collection(db, 'mantenimientos'), where('equipoId', '==', equip.id));
+      const mantSnapshot = await getDocs(qMant);
+      const mantData = mantSnapshot.docs.map(d => ({ id: d.id, ...d.data() }) as any);
+      mantData.sort((a, b) => {
+        const dateA = new Date(a.fecha).getTime();
+        const dateB = new Date(b.fecha).getTime();
+        return dateB - dateA;
+      });
+      setMaintenanceHistoryData(mantData);
     } catch (error) {
       console.error(error);
       alert("Error al cargar el historial.");
@@ -795,8 +806,26 @@ export default function EquiposPage() {
     assignedName.toLowerCase().includes(search.toLowerCase());
   });
 
+  // Generar sugerencias únicas para autocompletado y evitar redundancia
+  const destinationSuggestions = Array.from(new Set([
+    ...equipments.map(e => e.ubicacion).filter(Boolean),
+    ...equipments.map(e => e.brandModel).filter(Boolean),
+    ...equipments.flatMap(e => e.networkPorts?.map(p => p.descripcion) || [])
+  ])).filter(Boolean).sort() as string[];
+
+  const cctvSuggestions = Array.from(new Set([
+    ...equipments.map(e => e.ubicacion).filter(Boolean),
+    ...equipments.flatMap(e => e.cctvChannels?.map(c => c.descripcion) || [])
+  ])).filter(Boolean).sort() as string[];
+
   return (
     <div className="equipos-container">
+      <datalist id="destinos-sugeridos">
+        {destinationSuggestions.map((sug, i) => <option key={i} value={sug} />)}
+      </datalist>
+      <datalist id="cctv-destinos-sugeridos">
+        {cctvSuggestions.map((sug, i) => <option key={i} value={sug} />)}
+      </datalist>
       <div className="no-print" style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
         <button 
           onClick={() => setActiveModule('Computadores')}
@@ -1249,7 +1278,7 @@ export default function EquiposPage() {
                       <input type="number" value={newCctvChannelNumber} onChange={e=>setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
+                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
                     </div>
                     <button 
                       type="button" 
@@ -1323,7 +1352,7 @@ export default function EquiposPage() {
                       <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                      <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                     </div>
                     <button 
                       type="button" 
@@ -1641,7 +1670,7 @@ export default function EquiposPage() {
                       <input type="number" value={newCctvChannelNumber} onChange={e=>setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
+                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
                     </div>
                     <button 
                       type="button" 
@@ -1766,7 +1795,7 @@ export default function EquiposPage() {
                       <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                      <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                     </div>
                     <button 
                       type="button" 
@@ -2292,6 +2321,30 @@ export default function EquiposPage() {
                       </div>
                     );
                   })}
+                </div>
+              )}
+
+              <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '10px', marginTop: '20px', color: '#374151' }}>Historial de Mantenimientos e Intervenciones</h4>
+              {loadingHistory ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>Cargando historial...</p>
+              ) : maintenanceHistoryData.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#6b7280', padding: '20px', background: '#f9fafb', borderRadius: '8px' }}>No hay mantenimientos registrados para este equipo.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                  {maintenanceHistoryData.map(mant => (
+                    <div key={mant.id} style={{ padding: '12px', borderRadius: '8px', border: '1px solid #e5e7eb', background: mant.estado === 'Programado' ? '#fef3c7' : mant.estado === 'Cancelado' ? '#fee2e2' : '#ecfdf5' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                        <strong><i className="fa-solid fa-wrench"></i> Técnico: {mant.tecnico || 'N/A'}</strong>
+                        <span style={{ fontSize: '12px', padding: '2px 8px', borderRadius: '20px', background: mant.estado === 'Programado' ? '#fde68a' : mant.estado === 'Cancelado' ? '#fecaca' : '#a7f3d0', color: mant.estado === 'Programado' ? '#d97706' : mant.estado === 'Cancelado' ? '#dc2626' : '#059669', fontWeight: 'bold' }}>
+                          {mant.estado}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: '13px', color: '#4b5563' }}>
+                        <i className="fa-solid fa-calendar-day" style={{ color: '#6b7280' }}></i> Fecha: {mant.fecha}
+                      </div>
+                      {mant.observaciones && <div style={{ fontSize: '12px', marginTop: '5px', color: '#6b7280' }}><strong>Observaciones:</strong> {mant.observaciones}</div>}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
