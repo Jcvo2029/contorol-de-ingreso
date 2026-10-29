@@ -183,6 +183,7 @@ export default function EquiposPage() {
   const [totalNetworkPorts, setTotalNetworkPorts] = useState(24);
 
   const [selectedConnectionDevice, setSelectedConnectionDevice] = useState('');
+  const [selectedConnectionDeviceSearch, setSelectedConnectionDeviceSearch] = useState('');
   const [selectedConnectionPort, setSelectedConnectionPort] = useState('');
   const [inputMode, setInputMode] = useState<'manual'|'inventory'>('inventory');
 
@@ -275,8 +276,55 @@ export default function EquiposPage() {
     setNewNetworkPortNumber('');
     setNewNetworkPortDesc('');
     setSelectedConnectionDevice('');
+    setSelectedConnectionDeviceSearch('');
     setSelectedConnectionPort('');
     setInputMode('inventory');
+  };
+
+  const syncRemotePorts = async (sourceId: string, sourceDesc: string, currentPorts: any[]) => {
+    if (!currentPorts || currentPorts.length === 0) return;
+    for (const port of currentPorts) {
+      if (port.connectedToId && !port.connectedToId.startsWith('pers-') && port.connectedToPort) {
+        const remoteEq = equipments.find(e => e.id === port.connectedToId);
+        if (remoteEq) {
+          const remotePorts = remoteEq.networkPorts || [];
+          const existingIndex = remotePorts.findIndex((rp: any) => rp.numero === port.connectedToPort);
+          const myDesc = `${sourceDesc} - P${port.numero}`;
+          
+          let needsUpdate = false;
+          let newRemotePorts = [...remotePorts];
+          
+          if (existingIndex >= 0) {
+            if (newRemotePorts[existingIndex].connectedToId !== sourceId || newRemotePorts[existingIndex].connectedToPort !== port.numero || newRemotePorts[existingIndex].descripcion !== myDesc) {
+              newRemotePorts[existingIndex] = {
+                ...newRemotePorts[existingIndex],
+                descripcion: myDesc,
+                connectedToId: sourceId,
+                connectedToPort: port.numero
+              };
+              needsUpdate = true;
+            }
+          } else {
+            newRemotePorts.push({
+              numero: port.connectedToPort,
+              descripcion: myDesc,
+              connectedToId: sourceId,
+              connectedToPort: port.numero
+            });
+            newRemotePorts.sort((a:any,b:any) => parseInt(a.numero) - parseInt(b.numero));
+            needsUpdate = true;
+          }
+          
+          if (needsUpdate) {
+            try {
+              await updateDoc(doc(db, 'equipos', remoteEq.id), { networkPorts: newRemotePorts });
+            } catch (err) {
+              console.error("Error updating remote port", err);
+            }
+          }
+        }
+      }
+    }
   };
 
   const handleAddEquipment = async (e: React.FormEvent) => {
@@ -337,6 +385,15 @@ export default function EquiposPage() {
             await updateDoc(doc(db, 'personas', persona.id), { assignedTools: newTools });
           }
         }
+      }
+      
+      if (networkPorts && networkPorts.length > 0) {
+        let assignedInfo = '';
+        if (assignedUser) {
+          const p = personas.find(x => x.id === assignedUser);
+          if (p) assignedInfo = ` [Usuario: ${p.name}]`;
+        }
+        await syncRemotePorts(docRef.id, `${assetCode.trim()} | ${brandModel.trim()}${assignedInfo}`, networkPorts);
       }
       
       resetForm();
@@ -750,6 +807,15 @@ export default function EquiposPage() {
         }
       }
       
+      if (networkPorts && networkPorts.length > 0) {
+        let assignedInfo = '';
+        if (assignedUser) {
+          const p = personas.find(x => x.id === assignedUser);
+          if (p) assignedInfo = ` [Usuario: ${p.name}]`;
+        }
+        await syncRemotePorts(editingEquip.id, `${assetCode.trim()} | ${brandModel.trim()}${assignedInfo}`, networkPorts);
+      }
+
       setEditingEquip(null);
       resetForm();
       setCustomEquipmentType('');
@@ -844,10 +910,24 @@ export default function EquiposPage() {
     return assignedName ? ` [Usuario: ${assignedName}]` : '';
   };
 
+  const inventoryOptions = [
+    ...equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => ({
+      id: eq.id,
+      label: `${eq.assetCode} | ${eq.brandModel} - S/N: ${eq.serialNumber} (${eq.equipmentType}) ${eq.ubicacion ? `- ${eq.ubicacion}` : ''}${getAssignedUserName(eq)}`
+    })),
+    ...personas.map(p => ({
+      id: `pers-${p.id}`,
+      label: `👤 ${p.name}`
+    }))
+  ];
+
   return (
     <div className="equipos-container">
       <datalist id="destinos-sugeridos">
         {destinationSuggestions.map((sug, i) => <option key={i} value={sug} />)}
+      </datalist>
+      <datalist id="inventory-search-options">
+        {inventoryOptions.map((opt, i) => <option key={i} value={opt.label} />)}
       </datalist>
       <datalist id="cctv-destinos-sugeridos">
         {cctvSuggestions.map((sug, i) => <option key={i} value={sug} />)}
@@ -1386,37 +1466,43 @@ export default function EquiposPage() {
                     </div>
 
                     {inputMode === 'manual' ? (
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
                         <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                       </div>
                     ) : (
-                      <div style={{ flex: 1, display: 'flex', gap: '5px' }}>
-                        <select 
-                          className="form-group" 
-                          style={{ flex: 1, marginBottom: 0 }}
-                          value={selectedConnectionDevice} 
-                          onChange={e => {
-                            setSelectedConnectionDevice(e.target.value);
-                            setSelectedConnectionPort('');
-                          }}
-                        >
-                          <option value="">Seleccionar equipo...</option>
-                          {equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => (
-                            <option key={eq.id} value={eq.id}>{eq.brandModel} - S/N: {eq.serialNumber} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}{getAssignedUserName(eq)}</option>
-                          ))}
-                        </select>
+                      <div style={{ flex: 1, display: 'flex', gap: '5px', minWidth: 0 }}>
+                        <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
+                          <input 
+                            type="text"
+                            style={{ width: '100%', boxSizing: 'border-box' }}
+                            list="inventory-search-options"
+                            placeholder="Buscar equipo o usuario..."
+                            value={selectedConnectionDeviceSearch} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              setSelectedConnectionDeviceSearch(val);
+                              const matched = inventoryOptions.find(opt => opt.label === val);
+                              if (matched) {
+                                setSelectedConnectionDevice(matched.id);
+                              } else {
+                                setSelectedConnectionDevice('');
+                              }
+                              setSelectedConnectionPort('');
+                            }}
+                          />
+                        </div>
                         {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
-                          <select 
-                            className="form-group" 
-                            style={{ width: '80px', marginBottom: 0 }}
-                            value={selectedConnectionPort} 
-                            onChange={e => setSelectedConnectionPort(e.target.value)}
-                          >
-                            <option value="">Puerto</option>
-                            {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
-                              <option key={i} value={i + 1}>{i + 1}</option>
-                            ))}
-                          </select>
+                          <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
+                            <select 
+                              value={selectedConnectionPort} 
+                              onChange={e => setSelectedConnectionPort(e.target.value)}
+                            >
+                              <option value="">Puerto</option>
+                              {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
+                                <option key={i} value={i + 1}>{i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
                         ) : null}
                       </div>
                     )}
@@ -1426,24 +1512,46 @@ export default function EquiposPage() {
                       className="btn-primary" 
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
+                        if (inputMode === 'inventory' && selectedConnectionDevice && !selectedConnectionDevice.startsWith('pers-')) {
+                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                          if (eq && eq.totalNetworkPorts && !selectedConnectionPort) {
+                            alert('⚠️ Debes elegir a qué puerto del dispositivo destino te estás conectando.');
+                            return;
+                          }
+                        }
+
                         let finalDesc = newNetworkPortDesc.trim();
                         if (inputMode === 'inventory' && selectedConnectionDevice) {
-                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
-                          if (eq) {
-                            finalDesc = `${eq.brandModel}`;
-                            if (eq.totalNetworkPorts && selectedConnectionPort) {
-                              finalDesc += ` - P${selectedConnectionPort}`;
+                          if (selectedConnectionDevice.startsWith('pers-')) {
+                            const pId = selectedConnectionDevice.replace('pers-', '');
+                            const persona = personas.find(p => p.id === pId);
+                            if (persona) finalDesc = persona.name;
+                          } else {
+                            const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                            if (eq) {
+                              finalDesc = `${eq.assetCode} | ${eq.brandModel}${getAssignedUserName(eq)}`;
+                              if (eq.totalNetworkPorts && selectedConnectionPort) {
+                                finalDesc += ` - P${selectedConnectionPort}`;
+                              }
                             }
                           }
                         }
 
                         if (newNetworkPortNumber.trim() && finalDesc) {
-                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: finalDesc }];
+                          const newPortData: any = { numero: newNetworkPortNumber.trim(), descripcion: finalDesc };
+                          if (inputMode === 'inventory' && selectedConnectionDevice) {
+                            newPortData.connectedToId = selectedConnectionDevice;
+                            if (selectedConnectionPort) {
+                              newPortData.connectedToPort = selectedConnectionPort;
+                            }
+                          }
+                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), newPortData];
                           updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
                           setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
                           setSelectedConnectionDevice('');
+                          setSelectedConnectionDeviceSearch('');
                           setSelectedConnectionPort('');
                         }
                       }}
@@ -1885,37 +1993,43 @@ export default function EquiposPage() {
                     </div>
 
                     {inputMode === 'manual' ? (
-                      <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
+                      <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
                         <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                       </div>
                     ) : (
-                      <div style={{ flex: 1, display: 'flex', gap: '5px' }}>
-                        <select 
-                          className="form-group" 
-                          style={{ flex: 1, marginBottom: 0 }}
-                          value={selectedConnectionDevice} 
-                          onChange={e => {
-                            setSelectedConnectionDevice(e.target.value);
-                            setSelectedConnectionPort('');
-                          }}
-                        >
-                          <option value="">Seleccionar equipo...</option>
-                          {equipments.filter(eq => eq.id !== (editingEquip ? editingEquip.id : '')).map(eq => (
-                            <option key={eq.id} value={eq.id}>{eq.brandModel} ({eq.equipmentType}) {eq.ubicacion ? `- ${eq.ubicacion}` : ''}</option>
-                          ))}
-                        </select>
+                      <div style={{ flex: 1, display: 'flex', gap: '5px', minWidth: 0 }}>
+                        <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
+                          <input 
+                            type="text"
+                            style={{ width: '100%', boxSizing: 'border-box' }}
+                            list="inventory-search-options"
+                            placeholder="Buscar equipo o usuario..."
+                            value={selectedConnectionDeviceSearch} 
+                            onChange={e => {
+                              const val = e.target.value;
+                              setSelectedConnectionDeviceSearch(val);
+                              const matched = inventoryOptions.find(opt => opt.label === val);
+                              if (matched) {
+                                setSelectedConnectionDevice(matched.id);
+                              } else {
+                                setSelectedConnectionDevice('');
+                              }
+                              setSelectedConnectionPort('');
+                            }}
+                          />
+                        </div>
                         {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
-                          <select 
-                            className="form-group" 
-                            style={{ width: '80px', marginBottom: 0 }}
-                            value={selectedConnectionPort} 
-                            onChange={e => setSelectedConnectionPort(e.target.value)}
-                          >
-                            <option value="">Puerto</option>
-                            {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
-                              <option key={i} value={i + 1}>{i + 1}</option>
-                            ))}
-                          </select>
+                          <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
+                            <select 
+                              value={selectedConnectionPort} 
+                              onChange={e => setSelectedConnectionPort(e.target.value)}
+                            >
+                              <option value="">Puerto</option>
+                              {Array.from({ length: equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts || 0 }).map((_, i) => (
+                                <option key={i} value={i + 1}>{i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
                         ) : null}
                       </div>
                     )}
@@ -1925,24 +2039,46 @@ export default function EquiposPage() {
                       className="btn-primary" 
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
+                        if (inputMode === 'inventory' && selectedConnectionDevice && !selectedConnectionDevice.startsWith('pers-')) {
+                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                          if (eq && eq.totalNetworkPorts && !selectedConnectionPort) {
+                            alert('⚠️ Debes elegir a qué puerto del dispositivo destino te estás conectando.');
+                            return;
+                          }
+                        }
+
                         let finalDesc = newNetworkPortDesc.trim();
                         if (inputMode === 'inventory' && selectedConnectionDevice) {
-                          const eq = equipments.find(e => e.id === selectedConnectionDevice);
-                          if (eq) {
-                            finalDesc = `${eq.brandModel}`;
-                            if (eq.totalNetworkPorts && selectedConnectionPort) {
-                              finalDesc += ` - P${selectedConnectionPort}`;
+                          if (selectedConnectionDevice.startsWith('pers-')) {
+                            const pId = selectedConnectionDevice.replace('pers-', '');
+                            const persona = personas.find(p => p.id === pId);
+                            if (persona) finalDesc = persona.name;
+                          } else {
+                            const eq = equipments.find(e => e.id === selectedConnectionDevice);
+                            if (eq) {
+                              finalDesc = `${eq.assetCode} | ${eq.brandModel}${getAssignedUserName(eq)}`;
+                              if (eq.totalNetworkPorts && selectedConnectionPort) {
+                                finalDesc += ` - P${selectedConnectionPort}`;
+                              }
                             }
                           }
                         }
 
                         if (newNetworkPortNumber.trim() && finalDesc) {
-                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), { numero: newNetworkPortNumber.trim(), descripcion: finalDesc }];
+                          const newPortData: any = { numero: newNetworkPortNumber.trim(), descripcion: finalDesc };
+                          if (inputMode === 'inventory' && selectedConnectionDevice) {
+                            newPortData.connectedToId = selectedConnectionDevice;
+                            if (selectedConnectionPort) {
+                              newPortData.connectedToPort = selectedConnectionPort;
+                            }
+                          }
+                          const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), newPortData];
                           updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
                           setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
                           setSelectedConnectionDevice('');
+                          setSelectedConnectionDeviceSearch('');
                           setSelectedConnectionPort('');
                         }
                       }}
