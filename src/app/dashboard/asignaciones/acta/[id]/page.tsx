@@ -93,10 +93,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [showEntregaSelector, setShowEntregaSelector] = useState<boolean>(false);
   const [savingSelection, setSavingSelection] = useState<boolean>(false);
 
-  // Modal para agregar o editar usuario SIESA directamente
-  const [showSiesaModal, setShowSiesaModal] = useState<boolean>(false);
+  // Modal para agregar o editar credenciales (Dominio y SIESA) directamente
+  const [showCredsModal, setShowCredsModal] = useState<boolean>(false);
+  const [domainInput, setDomainInput] = useState<string>('');
   const [siesaInput, setSiesaInput] = useState<string>('');
-  const [savingSiesa, setSavingSiesa] = useState<boolean>(false);
+  const [savingCreds, setSavingCreds] = useState<boolean>(false);
 
   // Formulario rápido para ítem adicional manual
   const [customDesc, setCustomDesc] = useState('');
@@ -171,29 +172,52 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             }
           }
 
-          // Resolver automáticamente usuario SIESA si no viene en personaData ni en asigData
-          const currentSiesa = personaData?.siesaUser || personaData?.usuarioSiesa || asigData?.siesaUser;
-          if (!currentSiesa) {
+          // Resolver automáticamente usuarios de Dominio y SIESA si faltan
+          let currentDomain = personaData?.domainUser || personaData?.usuarioDominio || personaData?.dominio || asigData?.domainUser;
+          let currentSiesa = personaData?.siesaUser || personaData?.usuarioSiesa || personaData?.siesa || asigData?.siesaUser;
+
+          if (!currentDomain || !currentSiesa || currentDomain === 'N/A' || currentSiesa === 'N/A') {
             const matched = findSiesaRecord(
               personaData?.name || asigData?.personaName,
-              personaData?.domainUser,
-              personaData?.email
+              currentDomain !== 'N/A' ? currentDomain : '',
+              personaData?.email || asigData?.email || personaData?.office365Email
             );
-            if (matched && matched.siesa && matched.siesa !== 'N/A' && matched.siesa !== '---') {
-              const siesaClean = matched.siesa.trim().toUpperCase();
-              if (personaData) personaData.siesaUser = siesaClean;
-              asigData.siesaUser = siesaClean;
 
-              // Guardar silenciosamente en Firestore para persistencia permanente
-              if (asigData.personaId) {
-                updateDoc(doc(db, 'personas', asigData.personaId), { siesaUser: siesaClean }).catch(() => {});
+            if (matched) {
+              const updatesPersona: Record<string, any> = {};
+              const updatesAsig: Record<string, any> = {};
+
+              if ((!currentDomain || currentDomain === 'N/A') && matched.domain && matched.domain !== 'N/A' && matched.domain !== '---') {
+                const cleanDom = matched.domain.trim().toLowerCase();
+                if (personaData) personaData.domainUser = cleanDom;
+                asigData.domainUser = cleanDom;
+                updatesPersona.domainUser = cleanDom;
+                updatesAsig.domainUser = cleanDom;
+                currentDomain = cleanDom;
               }
-              updateDoc(doc(db, 'asignaciones', id), { siesaUser: siesaClean }).catch(() => {});
+
+              if ((!currentSiesa || currentSiesa === 'N/A') && matched.siesa && matched.siesa !== 'N/A' && matched.siesa !== '---') {
+                const cleanSiesa = matched.siesa.trim().toUpperCase();
+                if (personaData) personaData.siesaUser = cleanSiesa;
+                asigData.siesaUser = cleanSiesa;
+                updatesPersona.siesaUser = cleanSiesa;
+                updatesAsig.siesaUser = cleanSiesa;
+                currentSiesa = cleanSiesa;
+              }
+
+              if (Object.keys(updatesPersona).length > 0 && asigData.personaId) {
+                updateDoc(doc(db, 'personas', asigData.personaId), updatesPersona).catch(() => {});
+              }
+              if (Object.keys(updatesAsig).length > 0) {
+                updateDoc(doc(db, 'asignaciones', id), updatesAsig).catch(() => {});
+              }
             }
           }
+
           if (personaData) {
             setPersona(personaData);
           }
+          setAsignacion((prev: any) => ({ ...(prev || {}), ...asigData }));
 
           // Cargar el inventario real y activo de impresoras desde 'equipos' como fuente de verdad
           const activePrintersMap = new Map<string, { brandModel: string; serial: string; id: string }>();
@@ -443,7 +467,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     }
     const domainVal = persona?.domainUser || persona?.usuarioDominio || persona?.dominio || asignacion?.domainUser;
-    if (domainVal && String(domainVal).trim()) {
+    if (domainVal && String(domainVal).trim() && String(domainVal).trim().toUpperCase() !== 'N/A' && String(domainVal).trim().toUpperCase() !== '---') {
       list.push({
         id: 'domain',
         descripcion: 'Acceso al Dominio',
@@ -453,7 +477,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     }
     const siesaVal = persona?.siesaUser || persona?.usuarioSiesa || persona?.siesa || persona?.siesa_user || persona?.erpUser || persona?.usuario_siesa || asignacion?.siesaUser;
-    if (siesaVal && String(siesaVal).trim()) {
+    if (siesaVal && String(siesaVal).trim() && String(siesaVal).trim().toUpperCase() !== 'N/A' && String(siesaVal).trim().toUpperCase() !== '---') {
       list.push({
         id: 'siesa',
         descripcion: 'Acceso ERP SIESA',
@@ -542,7 +566,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     }
 
     return deduplicatedList;
-  }, [persona, sharedPrinters, otrosEquipos]);
+  }, [persona, sharedPrinters, otrosEquipos, asignacion]);
 
   const isDevolucion = viewMode === 'devolucion' && asignacion?.estado === 'Devuelto';
 
@@ -554,9 +578,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const effectiveEntregaSelectedIds = useMemo(() => {
     if (entregaSelectedIds === null) return defaultEntregaIds;
     const updated = [...entregaSelectedIds];
-    if (availableTools.some((t) => t.id === 'siesa') && !updated.includes('siesa')) {
-      updated.push('siesa');
-    }
+    availableTools.forEach((t) => {
+      if ((t.id === 'domain' || t.id === 'siesa' || t.id === 'office365') && !updated.includes(t.id)) {
+        updated.push(t.id);
+      }
+    });
     return updated;
   }, [entregaSelectedIds, defaultEntregaIds, availableTools]);
   const activeIncludeMain = isDevolucion ? devolucionIncludeMain : entregaIncludeMain;
@@ -706,40 +732,40 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     }
   };
 
-  const handleSaveSiesaUser = async () => {
+  const handleSaveCreds = async () => {
+    const cleanDom = domainInput.trim().toLowerCase();
     const cleanSiesa = siesaInput.trim().toUpperCase();
-    setSavingSiesa(true);
+    setSavingCreds(true);
     try {
-      await updateDoc(doc(db, 'asignaciones', id), {
+      const asigUpdates: Record<string, any> = {
+        domainUser: cleanDom,
         siesaUser: cleanSiesa,
-      });
+      };
 
       if (asignacion?.personaId) {
         await updateDoc(doc(db, 'personas', asignacion.personaId), {
+          domainUser: cleanDom,
           siesaUser: cleanSiesa,
         });
       }
 
-      setPersona((prev: any) => (prev ? { ...prev, siesaUser: cleanSiesa } : prev));
-      setAsignacion((prev: any) => (prev ? { ...prev, siesaUser: cleanSiesa } : prev));
+      let currentIds = entregaSelectedIds !== null ? [...entregaSelectedIds] : [...defaultEntregaIds];
+      if (cleanDom && !currentIds.includes('domain')) currentIds.push('domain');
+      if (cleanSiesa && !currentIds.includes('siesa')) currentIds.push('siesa');
+      asigUpdates.itemsEntregaSeleccionados = currentIds;
 
-      if (cleanSiesa) {
-        let currentIds = entregaSelectedIds !== null ? [...entregaSelectedIds] : [...defaultEntregaIds];
-        if (!currentIds.includes('siesa')) {
-          currentIds.push('siesa');
-        }
-        setEntregaSelectedIds(currentIds);
-        await updateDoc(doc(db, 'asignaciones', id), {
-          itemsEntregaSeleccionados: currentIds,
-        });
-      }
+      await updateDoc(doc(db, 'asignaciones', id), asigUpdates);
 
-      setShowSiesaModal(false);
+      setPersona((prev: any) => (prev ? { ...prev, domainUser: cleanDom, siesaUser: cleanSiesa } : prev));
+      setAsignacion((prev: any) => (prev ? { ...prev, domainUser: cleanDom, siesaUser: cleanSiesa, itemsEntregaSeleccionados: currentIds } : prev));
+      setEntregaSelectedIds(currentIds);
+
+      setShowCredsModal(false);
     } catch (err) {
-      console.error('Error guardando usuario SIESA:', err);
-      alert('Error al guardar el usuario de SIESA.');
+      console.error('Error guardando credenciales:', err);
+      alert('Error al guardar credenciales.');
     } finally {
-      setSavingSiesa(false);
+      setSavingCreds(false);
     }
   };
 
@@ -1123,12 +1149,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                 <button
                   type="button"
                   onClick={() => {
-                    const curSiesa = persona?.siesaUser || asignacion?.siesaUser || '';
+                    const curDom = persona?.domainUser || asignacion?.domainUser || '';
+                    const curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
+                    setDomainInput(curDom);
                     setSiesaInput(curSiesa);
-                    setShowSiesaModal(true);
+                    setShowCredsModal(true);
                   }}
                   style={{
-                    padding: '4px 10px',
+                    padding: '5px 12px',
                     fontSize: '12px',
                     borderRadius: '6px',
                     border: '1px solid #c7d2fe',
@@ -1138,11 +1166,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                     fontWeight: 500,
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: '5px'
+                    gap: '6px'
                   }}
-                  title="Configurar usuario ERP SIESA"
+                  title="Configurar usuarios de Dominio y SIESA"
                 >
-                  <i className="fa-solid fa-database"></i> {persona?.siesaUser || asignacion?.siesaUser ? 'Editar ERP SIESA' : '+ Asignar ERP SIESA'}
+                  <i className="fa-solid fa-key"></i> {persona?.domainUser || persona?.siesaUser || asignacion?.domainUser || asignacion?.siesaUser ? 'Editar Credenciales (Dominio / SIESA)' : '+ Asignar Dominio / SIESA'}
                 </button>
               </div>
             </div>
@@ -1184,14 +1212,17 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                           textTransform: tool.capitalizeDetalle ? 'capitalize' : 'none',
                         }}
                       >
-                        <span style={tool.id === 'siesa' ? { fontWeight: 600, color: '#1e293b' } : {}}>{tool.detalle}</span>
-                        {tool.id === 'siesa' && (
+                        <span style={tool.id === 'siesa' || tool.id === 'domain' ? { fontWeight: 600, color: '#1e293b' } : {}}>{tool.detalle}</span>
+                        {(tool.id === 'siesa' || tool.id === 'domain') && (
                           <button
                             type="button"
                             className="no-print"
                             onClick={() => {
-                              setSiesaInput(tool.detalle);
-                              setShowSiesaModal(true);
+                              const curDom = persona?.domainUser || asignacion?.domainUser || '';
+                              const curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
+                              setDomainInput(curDom);
+                              setSiesaInput(curSiesa);
+                              setShowCredsModal(true);
                             }}
                             style={{
                               marginLeft: '8px',
@@ -1202,7 +1233,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                               fontSize: '12px',
                               padding: '2px 4px',
                             }}
-                            title="Editar usuario SIESA"
+                            title={`Editar ${tool.descripcion}`}
                           >
                             <i className="fa-solid fa-pen-to-square"></i>
                           </button>
@@ -1466,7 +1497,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         </div>
       )}
 
-      {showSiesaModal && (
+      {showCredsModal && (
         <div
           className="no-print"
           style={{
@@ -1482,13 +1513,13 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             zIndex: 9999,
             padding: '20px',
           }}
-          onClick={() => setShowSiesaModal(false)}
+          onClick={() => setShowCredsModal(false)}
         >
           <div
             style={{
               backgroundColor: 'white',
               borderRadius: '12px',
-              maxWidth: '460px',
+              maxWidth: '480px',
               width: '100%',
               padding: '24px',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
@@ -1497,12 +1528,12 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <i className="fa-solid fa-database" style={{ color: '#4f46e5' }}></i>
-                Usuario ERP SIESA
+                <i className="fa-solid fa-key" style={{ color: '#4f46e5' }}></i>
+                Credenciales del Colaborador
               </h3>
               <button
                 type="button"
-                onClick={() => setShowSiesaModal(false)}
+                onClick={() => setShowCredsModal(false)}
                 style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#6b7280' }}
               >
                 ✕
@@ -1510,18 +1541,42 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             </div>
 
             <p style={{ fontSize: '13px', color: '#4b5563', marginBottom: '16px', lineHeight: '1.5' }}>
-              Asigne o actualice el usuario de SIESA para <strong>{persona?.name || asignacion?.personaName}</strong>. Aparecerá en la tabla de herramientas tecnológicas y se guardará en su perfil.
+              Configure los accesos tecnológicos para <strong>{persona?.name || asignacion?.personaName}</strong>. Aparecerán en el acta de entrega y se guardarán en su perfil.
             </p>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                Acceso al Dominio (Red Local)
+              </label>
+              <input
+                type="text"
+                value={domainInput}
+                onChange={(e) => setDomainInput(e.target.value.toLowerCase())}
+                placeholder="Ej: auxcontable-2 o admin.usuario"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <span style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                Usuario de inicio de sesión en Windows / Red local.
+              </span>
+            </div>
 
             <div style={{ marginBottom: '20px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
-                Nombre de Usuario SIESA
+                Acceso ERP SIESA
               </label>
               <input
                 type="text"
                 value={siesaInput}
                 onChange={(e) => setSiesaInput(e.target.value.toUpperCase())}
-                placeholder="Ej: ALEX-AHUMADA"
+                placeholder="Ej: JEREMY-CARMONA"
                 style={{
                   width: '100%',
                   padding: '10px 12px',
@@ -1533,23 +1588,22 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                   outline: 'none',
                   boxSizing: 'border-box'
                 }}
-                autoFocus
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     e.preventDefault();
-                    handleSaveSiesaUser();
+                    handleSaveCreds();
                   }
                 }}
               />
               <span style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
-                Se guardará automáticamente en mayúsculas.
+                Usuario en el sistema ERP SIESA (se guardará en mayúsculas).
               </span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
               <button
                 type="button"
-                onClick={() => setShowSiesaModal(false)}
+                onClick={() => setShowCredsModal(false)}
                 style={{
                   padding: '8px 16px',
                   borderRadius: '6px',
@@ -1564,8 +1618,8 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               </button>
               <button
                 type="button"
-                onClick={handleSaveSiesaUser}
-                disabled={savingSiesa}
+                onClick={handleSaveCreds}
+                disabled={savingCreds}
                 style={{
                   padding: '8px 18px',
                   borderRadius: '6px',
@@ -1576,7 +1630,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                   cursor: 'pointer',
                 }}
               >
-                {savingSiesa ? 'Guardando...' : 'Guardar y Mostrar'}
+                {savingCreds ? 'Guardando...' : 'Guardar y Mostrar en Acta'}
               </button>
             </div>
           </div>

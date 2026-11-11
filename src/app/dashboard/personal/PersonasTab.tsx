@@ -237,17 +237,20 @@ export default function PersonasPage() {
     let updatedCount = 0;
     try {
       for (const p of personas) {
-        if (!p.siesaUser) {
-          const match = findSiesaRecord(p.name, p.domainUser, p.email);
-          if (match && match.siesa && match.siesa !== 'N/A' && match.siesa !== '---') {
-            const updates: any = {
-              siesaUser: match.siesa.trim().toUpperCase(),
-            };
-            if (!p.domainUser && match.domain && match.domain !== 'N/A') {
+        if (!p.siesaUser || !p.domainUser || p.siesaUser === 'N/A' || p.domainUser === 'N/A') {
+          const match = findSiesaRecord(p.name, p.domainUser !== 'N/A' ? p.domainUser : '', p.email || p.office365Email);
+          if (match) {
+            const updates: any = {};
+            if ((!p.siesaUser || p.siesaUser === 'N/A') && match.siesa && match.siesa !== 'N/A' && match.siesa !== '---') {
+              updates.siesaUser = match.siesa.trim().toUpperCase();
+            }
+            if ((!p.domainUser || p.domainUser === 'N/A') && match.domain && match.domain !== 'N/A' && match.domain !== '---') {
               updates.domainUser = match.domain.trim().toLowerCase();
             }
-            await updateDoc(doc(db, 'personas', p.id), updates);
-            updatedCount++;
+            if (Object.keys(updates).length > 0) {
+              await updateDoc(doc(db, 'personas', p.id), updates);
+              updatedCount++;
+            }
           }
         }
       }

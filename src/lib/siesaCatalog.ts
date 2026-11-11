@@ -351,6 +351,82 @@ export const SIESA_CATALOG: SiesaCatalogEntry[] = [
   }
 ];
 
+// Mapeo oficial de correos corporativos a nombres de colaboradores
+export const EMAIL_TO_NAME_MAP: Record<string, string> = {
+  "financiero@contexsas.com": "Freddy Farah",
+  "gabriel@contexsas.com": "Gabriel Abuchaibe",
+  "ivan@contexsas.com": "Ivan Abudinen",
+  "nicolas@contexsas.com": "Nicolas Abuchaibe",
+  "administrativo@contexsas.com": "Joussette Abudinen",
+  "administracion@contexsas.com": "Joussette Abudinen",
+  "jabudinen@contexsas.com": "Joussette Abudinen",
+  "protecciondedatos@contexsas.com": "Joussette Abudinen",
+  "etica@contexsas.com": "Joussette Abudinen",
+  "alexabu@contexsas.com": "Alex Abudinen",
+  "tesoreria@contexsas.com": "Jannifer Hennessey",
+  "notificaciones@contexsas.com": "Portal Contex",
+  "export@contexsas.com": "Josmer Marquez",
+  "sistemas@contexsas.com": "Luis A. Caraballo",
+  "soportesiesa@contexsas.com": "Jan Benitez",
+  "auxsistemas@contexsas.com": "Juan Villalobos",
+  "auxventas@contexsas.com": "Jesica Garcia",
+  "auxventas2@contexsas.com": "Maria Molina",
+  "ventas@contexsas.com": "Diana Gonzalez",
+  "comercial@contexsas.com": "Leidy Camargo",
+  "comercialbq@contexsas.com": "Cindy Pumarejo",
+  "asistentecontable@contexsas.com": "Jeremy Carmona",
+  "contabilidad@contexsas.com": "Alexandra Mercado",
+  "contador@contexsas.com": "Angelica Barrios",
+  "auxcontabilidad@contexsas.com": "Maria Duran",
+  "facturacion@contexsas.com": "Mauricio Zapata",
+  "wendy.caro@contexsas.com": "Wendy Caro",
+  "disenador1@contexsas.com": "Luis Figueroa",
+  "disenador2@contexsas.com": "Disponible",
+  "disenador3@contexsas.com": "Bryan Jimenez",
+  "diseno@contexsas.com": "Enoc Chatelain",
+  "comercioexterior@contexsas.com": "Daniel Gracia",
+  "cartera@contexsas.com": "Patricia Rangel",
+  "auxcartera@contexsas.com": "Maria Jimenez",
+  "compras@contexsas.com": "Miladys Yee",
+  "archivos@contexsas.com": "Erika Valera",
+  "mantenimiento@contexsas.com": "Danis Padilla",
+  "tecnivotextil@contexsas.com": "Miguel Fuquene",
+  "almacen@contexsas.com": "Erika Brochero",
+  "inventarios@contexsas.com": "Alex Ahumada",
+  "kcardenas@contexsas.com": "Kelly Cardenas",
+  "nomina@contexsas.com": "Luis F. Estrada",
+  "personal@contexsas.com": "Maria Dominguez",
+  "comitedeconvivencialaboral@contexsas.com": "Yeison Muñoz",
+  "despachos@contexsas.com": "Yonnier Barraza",
+  "asistentedespachos@contexsas.com": "Nasyerlis Roa",
+  "asistentedespachos1@contexsas.com": "Astrid Mendoza",
+  "acabadotoalla@contexsas.com": "Mario Gonzalez",
+  "auxacabado@contexsas.com": "Joiser Zarache",
+  "auxhamacas@contexsas.com": "Iris Villalba",
+  "estampado@contexsas.com": "Estampado",
+  "produccion@contexsas.com": "Juan Carlos Fernandez",
+  "logistica@contexsas.com": "July Marcela Figueredo",
+  "crudo@contexsas.com": "Edmar Lopez",
+  "inspectorcalidad@contexsas.com": "Daniela Avila",
+  "coordinadordeproduccion@contexsas.com": "Yocelin Peñaloza",
+  "telares@contexsas.com": "Alex Saavedra",
+  "vigilancia@contexsas.com": "Vigilancia",
+  "controldecalidad@contexsas.com": "Bogota",
+  "asisproduccion@contexsas.com": "Bogotá",
+  "auditordecalidad@contexsas.com": "Daniel Cobos",
+  "auxcomercialbico@contexsas.com": "Luz Angela Guisa",
+  "auxdisenobog@contexsas.com": "Aura Melo",
+  "auxservicioalcliente2@contexsas.com": "Analista Serv. Cliente",
+  "auxlogistica@contexsas.com": "Laura Becerra",
+  "bordador@contexsas.com": "Bogotá",
+  "licitaciones@contexsas.com": "Natalia Perez",
+  "servicioalcliente@contexsas.com": "Paola Cuervo",
+  "comercial1@contexsas.com": "Claudia Montes",
+  "comercial.pasto@contexsas.com": "Karina Saldaña",
+  "comercialcordoba@contexsas.com": "Francisco Tovar",
+  "th_correoc@contexsas.com": "The Better Choice"
+};
+
 export function normalizeStr(str?: string): string {
   return (str || "")
     .toLowerCase()
@@ -362,15 +438,19 @@ export function normalizeStr(str?: string): string {
 }
 
 export function findSiesaRecord(name?: string, domain?: string, email?: string): SiesaCatalogEntry | null {
-  const pNorm = normalizeStr(name);
-  const domNorm = normalizeStr(domain);
-  const emPrefix = normalizeStr((email || "").split("@")[0]);
+  const emLower = (email || "").toLowerCase().trim();
+  const candidateNames: string[] = [];
+  if (name && name.trim()) candidateNames.push(name.trim());
+  if (EMAIL_TO_NAME_MAP[emLower] && !candidateNames.includes(EMAIL_TO_NAME_MAP[emLower])) {
+    candidateNames.push(EMAIL_TO_NAME_MAP[emLower]);
+  }
 
-  // 1. Coincidencia por nombre completo o palabras clave del nombre
-  if (pNorm) {
+  // 1. Coincidencia por nombres de candidatos (nombre registrado o nombre mapeado por correo)
+  for (const cand of candidateNames) {
+    const pNorm = normalizeStr(cand);
+    if (!pNorm) continue;
     const pWords = pNorm.split(" ").filter((w) => w.length > 2);
     const byName = SIESA_CATALOG.find((item) => {
-      if (!item.name || !item.siesa || item.siesa === "N/A" || item.siesa === "---") return false;
       const cNorm = normalizeStr(item.name);
       if (pNorm === cNorm || pNorm.includes(cNorm) || cNorm.includes(pNorm)) return true;
       const matchCount = pWords.filter((w) => cNorm.includes(w)).length;
@@ -380,25 +460,29 @@ export function findSiesaRecord(name?: string, domain?: string, email?: string):
   }
 
   // 2. Coincidencia por usuario de dominio
+  const domNorm = normalizeStr(domain);
   if (domNorm) {
     const byDom = SIESA_CATALOG.find((item) => {
-      if (!item.domain || !item.siesa || item.siesa === "N/A") return false;
-      return normalizeStr(item.domain) === domNorm;
+      const dNorm = normalizeStr(item.domain);
+      return dNorm === domNorm || dNorm.includes(domNorm) || domNorm.includes(dNorm);
     });
     if (byDom) return byDom;
   }
 
-  // 3. Coincidencia por prefijo de correo electrónico
+  // 3. Coincidencia por prefijo del correo electrónico contra siesa o dominio
+  const emPrefix = normalizeStr(emLower.split("@")[0]);
   if (emPrefix) {
+    const cleanEm = emPrefix.replace(/[^a-z0-9]/g, "");
     const byEm = SIESA_CATALOG.find((item) => {
-      if (!item.siesa || item.siesa === "N/A") return false;
       const sNorm = normalizeStr(item.siesa).replace(/[^a-z0-9]/g, "");
-      const emNorm = emPrefix.replace(/[^a-z0-9]/g, "");
-      return sNorm === emNorm;
+      const dNorm = normalizeStr(item.domain).replace(/[^a-z0-9]/g, "");
+      return (
+        (sNorm && (sNorm.includes(cleanEm) || cleanEm.includes(sNorm))) ||
+        (dNorm && (dNorm.includes(cleanEm) || cleanEm.includes(dNorm)))
+      );
     });
     if (byEm) return byEm;
   }
 
   return null;
 }
-
