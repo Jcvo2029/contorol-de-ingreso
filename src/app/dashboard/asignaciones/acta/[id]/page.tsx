@@ -1370,9 +1370,6 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           ) : (
             <>
               <p>
-                Hago constar la recepción {activeIncludeMain && hasAnyToolsToRender ? 'del equipo y herramientas tecnológicas descritas' : activeIncludeMain ? 'del equipo descrito' : 'de las herramientas tecnológicas descritas'}, asignados en buen estado y en las condiciones indicadas, para uso exclusivo como <strong>herramienta de trabajo</strong>.
-              </p>
-              <p style={{ marginTop: '10px' }}>
                 Me comprometo a utilizar adecuadamente, durante mi permanencia en la empresa, los equipos y/o herramientas tecnológicas recibidos y mantenerlos en buen estado, dando cumplimiento a las normas y reglamentos establecidos dentro de la compañía. Declaro que he recibido información sobre el uso adecuado de los mismos.
               </p>
               <p style={{ marginTop: '10px' }}>
