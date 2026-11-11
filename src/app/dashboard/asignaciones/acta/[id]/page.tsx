@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { findSiesaRecord } from '@/lib/siesaCatalog';
 import SignatureCanvas from 'react-signature-canvas';
 import Link from 'next/link';
 import './acta.css';
@@ -92,6 +93,11 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const [showEntregaSelector, setShowEntregaSelector] = useState<boolean>(false);
   const [savingSelection, setSavingSelection] = useState<boolean>(false);
 
+  // Modal para agregar o editar usuario SIESA directamente
+  const [showSiesaModal, setShowSiesaModal] = useState<boolean>(false);
+  const [siesaInput, setSiesaInput] = useState<string>('');
+  const [savingSiesa, setSavingSiesa] = useState<boolean>(false);
+
   // Formulario rápido para ítem adicional manual
   const [customDesc, setCustomDesc] = useState('');
   const [customDetalle, setCustomDetalle] = useState('');
@@ -157,13 +163,36 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           );
 
           // Fetch Persona details
-          let personaData = null;
+          let personaData: any = null;
           if (asigData.personaId) {
             const persDoc = await getDoc(doc(db, 'personas', asigData.personaId));
             if (persDoc.exists()) {
-              personaData = persDoc.data();
-              setPersona(personaData);
+              personaData = { ...persDoc.data(), id: persDoc.id };
             }
+          }
+
+          // Resolver automáticamente usuario SIESA si no viene en personaData ni en asigData
+          const currentSiesa = personaData?.siesaUser || personaData?.usuarioSiesa || asigData?.siesaUser;
+          if (!currentSiesa) {
+            const matched = findSiesaRecord(
+              personaData?.name || asigData?.personaName,
+              personaData?.domainUser,
+              personaData?.email
+            );
+            if (matched && matched.siesa && matched.siesa !== 'N/A' && matched.siesa !== '---') {
+              const siesaClean = matched.siesa.trim().toUpperCase();
+              if (personaData) personaData.siesaUser = siesaClean;
+              asigData.siesaUser = siesaClean;
+
+              // Guardar silenciosamente en Firestore para persistencia permanente
+              if (asigData.personaId) {
+                updateDoc(doc(db, 'personas', asigData.personaId), { siesaUser: siesaClean }).catch(() => {});
+              }
+              updateDoc(doc(db, 'asignaciones', id), { siesaUser: siesaClean }).catch(() => {});
+            }
+          }
+          if (personaData) {
+            setPersona(personaData);
           }
 
           // Cargar el inventario real y activo de impresoras desde 'equipos' como fuente de verdad
@@ -413,20 +442,22 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         monospaceSerial: true,
       });
     }
-    if (persona?.domainUser) {
+    const domainVal = persona?.domainUser || persona?.usuarioDominio || persona?.dominio || asignacion?.domainUser;
+    if (domainVal && String(domainVal).trim()) {
       list.push({
         id: 'domain',
         descripcion: 'Acceso al Dominio',
-        detalle: formatText(persona.domainUser),
+        detalle: String(domainVal).trim().toLowerCase(),
         sistemaTipo: 'Red Local',
         serial: 'N/A',
       });
     }
-    if (persona?.siesaUser) {
+    const siesaVal = persona?.siesaUser || persona?.usuarioSiesa || persona?.siesa || persona?.siesa_user || persona?.erpUser || persona?.usuario_siesa || asignacion?.siesaUser;
+    if (siesaVal && String(siesaVal).trim()) {
       list.push({
         id: 'siesa',
         descripcion: 'Acceso ERP SIESA',
-        detalle: formatText(persona.siesaUser),
+        detalle: String(siesaVal).trim().toUpperCase(),
         sistemaTipo: 'SIESA',
         serial: 'N/A',
       });
@@ -520,7 +551,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     [availableTools]
   );
 
-  const effectiveEntregaSelectedIds = entregaSelectedIds !== null ? entregaSelectedIds : defaultEntregaIds;
+  const effectiveEntregaSelectedIds = useMemo(() => {
+    if (entregaSelectedIds === null) return defaultEntregaIds;
+    const updated = [...entregaSelectedIds];
+    if (availableTools.some((t) => t.id === 'siesa') && !updated.includes('siesa')) {
+      updated.push('siesa');
+    }
+    return updated;
+  }, [entregaSelectedIds, defaultEntregaIds, availableTools]);
   const activeIncludeMain = isDevolucion ? devolucionIncludeMain : entregaIncludeMain;
   const activeSelectedIds = isDevolucion ? devolucionSelectedIds : effectiveEntregaSelectedIds;
   const activeExtraItems = isDevolucion ? devolucionExtraItems : entregaExtraItems;
@@ -665,6 +703,43 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     } else {
       setEntregaExtraItems(next);
       persistSelection({ itemsEntregaExtra: next });
+    }
+  };
+
+  const handleSaveSiesaUser = async () => {
+    const cleanSiesa = siesaInput.trim().toUpperCase();
+    setSavingSiesa(true);
+    try {
+      await updateDoc(doc(db, 'asignaciones', id), {
+        siesaUser: cleanSiesa,
+      });
+
+      if (asignacion?.personaId) {
+        await updateDoc(doc(db, 'personas', asignacion.personaId), {
+          siesaUser: cleanSiesa,
+        });
+      }
+
+      setPersona((prev: any) => (prev ? { ...prev, siesaUser: cleanSiesa } : prev));
+      setAsignacion((prev: any) => (prev ? { ...prev, siesaUser: cleanSiesa } : prev));
+
+      if (cleanSiesa) {
+        let currentIds = entregaSelectedIds !== null ? [...entregaSelectedIds] : [...defaultEntregaIds];
+        if (!currentIds.includes('siesa')) {
+          currentIds.push('siesa');
+        }
+        setEntregaSelectedIds(currentIds);
+        await updateDoc(doc(db, 'asignaciones', id), {
+          itemsEntregaSeleccionados: currentIds,
+        });
+      }
+
+      setShowSiesaModal(false);
+    } catch (err) {
+      console.error('Error guardando usuario SIESA:', err);
+      alert('Error al guardar el usuario de SIESA.');
+    } finally {
+      setSavingSiesa(false);
     }
   };
 
@@ -1042,7 +1117,35 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
 
         {hasAnyToolsToRender && (
           <div className="acta-section">
-            <h3>{isDevolucion ? 'Herramientas y Accesorios Entregados' : 'Herramientas Tecnológicas Asignadas'}</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h3 style={{ margin: 0 }}>{isDevolucion ? 'Herramientas y Accesorios Entregados' : 'Herramientas Tecnológicas Asignadas'}</h3>
+              <div className="no-print" style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const curSiesa = persona?.siesaUser || asignacion?.siesaUser || '';
+                    setSiesaInput(curSiesa);
+                    setShowSiesaModal(true);
+                  }}
+                  style={{
+                    padding: '4px 10px',
+                    fontSize: '12px',
+                    borderRadius: '6px',
+                    border: '1px solid #c7d2fe',
+                    background: '#eef2ff',
+                    color: '#4338ca',
+                    cursor: 'pointer',
+                    fontWeight: 500,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '5px'
+                  }}
+                  title="Configurar usuario ERP SIESA"
+                >
+                  <i className="fa-solid fa-database"></i> {persona?.siesaUser || asignacion?.siesaUser ? 'Editar ERP SIESA' : '+ Asignar ERP SIESA'}
+                </button>
+              </div>
+            </div>
             <div className="table-responsive">
               <table className="herramientas-table" style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
                 <thead>
@@ -1081,7 +1184,29 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                           textTransform: tool.capitalizeDetalle ? 'capitalize' : 'none',
                         }}
                       >
-                        {tool.detalle}
+                        <span style={tool.id === 'siesa' ? { fontWeight: 600, color: '#1e293b' } : {}}>{tool.detalle}</span>
+                        {tool.id === 'siesa' && (
+                          <button
+                            type="button"
+                            className="no-print"
+                            onClick={() => {
+                              setSiesaInput(tool.detalle);
+                              setShowSiesaModal(true);
+                            }}
+                            style={{
+                              marginLeft: '8px',
+                              background: 'none',
+                              border: 'none',
+                              color: '#4f46e5',
+                              cursor: 'pointer',
+                              fontSize: '12px',
+                              padding: '2px 4px',
+                            }}
+                            title="Editar usuario SIESA"
+                          >
+                            <i className="fa-solid fa-pen-to-square"></i>
+                          </button>
+                        )}
                       </td>
                       <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{tool.sistemaTipo}</td>
                       <td
@@ -1338,6 +1463,123 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               <button onClick={handleClearSignature} className="btn-limpiar" disabled={savingSignature}>Limpiar</button>
               <button onClick={handleSaveSignature} className="btn-save" disabled={savingSignature}>
                 {savingSignature ? 'Guardando...' : 'Guardar Firma'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSiesaModal && (
+        <div
+          className="no-print"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+          }}
+          onClick={() => setShowSiesaModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <i className="fa-solid fa-database" style={{ color: '#4f46e5' }}></i>
+                Usuario ERP SIESA
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowSiesaModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '18px', cursor: 'pointer', color: '#6b7280' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '13px', color: '#4b5563', marginBottom: '16px', lineHeight: '1.5' }}>
+              Asigne o actualice el usuario de SIESA para <strong>{persona?.name || asignacion?.personaName}</strong>. Aparecerá en la tabla de herramientas tecnológicas y se guardará en su perfil.
+            </p>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, color: '#374151', marginBottom: '6px' }}>
+                Nombre de Usuario SIESA
+              </label>
+              <input
+                type="text"
+                value={siesaInput}
+                onChange={(e) => setSiesaInput(e.target.value.toUpperCase())}
+                placeholder="Ej: ALEX-AHUMADA"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveSiesaUser();
+                  }
+                }}
+              />
+              <span style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px', display: 'block' }}>
+                Se guardará automáticamente en mayúsculas.
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowSiesaModal(false)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  background: 'white',
+                  color: '#374151',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveSiesaUser}
+                disabled={savingSiesa}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#4f46e5',
+                  color: 'white',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {savingSiesa ? 'Guardando...' : 'Guardar y Mostrar'}
               </button>
             </div>
           </div>

@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { findSiesaRecord } from '@/lib/siesaCatalog';
 import Link from 'next/link';
 import './personas.css';
 
@@ -58,6 +59,7 @@ export default function PersonasPage() {
   const [office365Key, setOffice365Key] = useState('');
   const [domainUser, setDomainUser] = useState('');
   const [siesaUser, setSiesaUser] = useState('');
+  const [syncingSiesa, setSyncingSiesa] = useState(false);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -227,6 +229,37 @@ export default function PersonasPage() {
     setShowForm(true);
   };
 
+  const handleSyncSiesaAll = async () => {
+    if (!window.confirm("¿Deseas sincronizar los usuarios de SIESA y Dominio desde el catálogo oficial de Excel para todos los colaboradores?")) {
+      return;
+    }
+    setSyncingSiesa(true);
+    let updatedCount = 0;
+    try {
+      for (const p of personas) {
+        if (!p.siesaUser) {
+          const match = findSiesaRecord(p.name, p.domainUser, p.email);
+          if (match && match.siesa && match.siesa !== 'N/A' && match.siesa !== '---') {
+            const updates: any = {
+              siesaUser: match.siesa.trim().toUpperCase(),
+            };
+            if (!p.domainUser && match.domain && match.domain !== 'N/A') {
+              updates.domainUser = match.domain.trim().toLowerCase();
+            }
+            await updateDoc(doc(db, 'personas', p.id), updates);
+            updatedCount++;
+          }
+        }
+      }
+      alert(`Sincronización completada exitosamente: se actualizaron ${updatedCount} colaboradores con sus credenciales de SIESA.`);
+    } catch (err: any) {
+      console.error("Error sincronizando SIESA:", err);
+      alert("Error durante la sincronización: " + (err.message || err));
+    } finally {
+      setSyncingSiesa(false);
+    }
+  };
+
   const resetForm = () => {
     setIdNumber(''); setName(''); setArea('');
     setVisitorType('Empleado'); setCompany('');
@@ -331,10 +364,36 @@ export default function PersonasPage() {
     <div className="personas-container">
       <div className="personas-header-card">
         <h2><i className="fa-solid fa-address-book"></i> Directorio de Personas</h2>
-        <button className="btn-add-persona" onClick={() => setShowForm(!showForm)}>
-          <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
-          {showForm ? 'Cancelar' : 'Nueva Persona'}
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <button
+            type="button"
+            className="btn-sync-siesa"
+            onClick={handleSyncSiesaAll}
+            disabled={syncingSiesa}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: '#4f46e5',
+              color: 'white',
+              border: 'none',
+              fontWeight: 600,
+              cursor: syncingSiesa ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+            }}
+            title="Sincronizar usuarios de SIESA y Dominio desde el archivo de Excel oficial"
+          >
+            <i className={`fa-solid ${syncingSiesa ? 'fa-spinner fa-spin' : 'fa-rotate'}`}></i>
+            {syncingSiesa ? 'Sincronizando...' : 'Sincronizar SIESA (Excel)'}
+          </button>
+          <button className="btn-add-persona" onClick={() => setShowForm(!showForm)}>
+            <i className={`fa-solid ${showForm ? 'fa-xmark' : 'fa-plus'}`}></i>
+            {showForm ? 'Cancelar' : 'Nueva Persona'}
+          </button>
+        </div>
       </div>
 
       {showForm && (
@@ -423,7 +482,13 @@ export default function PersonasPage() {
                   </div>
                   <div className="form-group">
                     <label>Usuario SIESA</label>
-                    <input type="text" placeholder="Ej: USUARIO_SIESA" value={siesaUser} onChange={(e) => setSiesaUser(e.target.value)} />
+                    <input 
+                      type="text" 
+                      placeholder="Ej: ALEX-AHUMADA" 
+                      value={siesaUser} 
+                      onChange={(e) => setSiesaUser(e.target.value.toUpperCase())} 
+                      style={{ textTransform: 'uppercase' }}
+                    />
                   </div>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '15px', marginTop: '20px' }}>
