@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { doc, getDoc, updateDoc, serverTimestamp, collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { findSiesaRecord } from '@/lib/siesaCatalog';
+import { findSiesaRecord, isValidCredential } from '@/lib/siesaCatalog';
 import SignatureCanvas from 'react-signature-canvas';
 import Link from 'next/link';
 import './acta.css';
@@ -172,14 +172,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             }
           }
 
-          // Resolver automáticamente usuarios de Dominio y SIESA si faltan
+          // Resolver automáticamente usuarios de Dominio y SIESA si faltan o no son válidos
           let currentDomain = personaData?.domainUser || personaData?.usuarioDominio || personaData?.dominio || asigData?.domainUser;
           let currentSiesa = personaData?.siesaUser || personaData?.usuarioSiesa || personaData?.siesa || asigData?.siesaUser;
 
-          if (!currentDomain || !currentSiesa || currentDomain === 'N/A' || currentSiesa === 'N/A') {
+          if (!isValidCredential(currentDomain) || !isValidCredential(currentSiesa)) {
             const matched = findSiesaRecord(
               personaData?.name || asigData?.personaName,
-              currentDomain !== 'N/A' ? currentDomain : '',
+              isValidCredential(currentDomain) ? String(currentDomain) : '',
               personaData?.email || asigData?.email || personaData?.office365Email
             );
 
@@ -187,7 +187,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               const updatesPersona: Record<string, any> = {};
               const updatesAsig: Record<string, any> = {};
 
-              if ((!currentDomain || currentDomain === 'N/A') && matched.domain && matched.domain !== 'N/A' && matched.domain !== '---') {
+              if (!isValidCredential(currentDomain) && isValidCredential(matched.domain)) {
                 const cleanDom = matched.domain.trim().toLowerCase();
                 if (personaData) personaData.domainUser = cleanDom;
                 asigData.domainUser = cleanDom;
@@ -196,13 +196,31 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                 currentDomain = cleanDom;
               }
 
-              if ((!currentSiesa || currentSiesa === 'N/A') && matched.siesa && matched.siesa !== 'N/A' && matched.siesa !== '---') {
+              if (!isValidCredential(currentSiesa) && isValidCredential(matched.siesa)) {
                 const cleanSiesa = matched.siesa.trim().toUpperCase();
                 if (personaData) personaData.siesaUser = cleanSiesa;
                 asigData.siesaUser = cleanSiesa;
                 updatesPersona.siesaUser = cleanSiesa;
                 updatesAsig.siesaUser = cleanSiesa;
                 currentSiesa = cleanSiesa;
+              }
+
+              if (Array.isArray(asigData.itemsEntregaSeleccionados)) {
+                const currentList = [...asigData.itemsEntregaSeleccionados];
+                let changed = false;
+                if (isValidCredential(currentDomain) && !currentList.includes('domain')) {
+                  currentList.push('domain');
+                  changed = true;
+                }
+                if (isValidCredential(currentSiesa) && !currentList.includes('siesa')) {
+                  currentList.push('siesa');
+                  changed = true;
+                }
+                if (changed) {
+                  asigData.itemsEntregaSeleccionados = currentList;
+                  updatesAsig.itemsEntregaSeleccionados = currentList;
+                  setEntregaSelectedIds(currentList);
+                }
               }
 
               if (Object.keys(updatesPersona).length > 0 && asigData.personaId) {
@@ -466,8 +484,24 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         monospaceSerial: true,
       });
     }
-    const domainVal = persona?.domainUser || persona?.usuarioDominio || persona?.dominio || asignacion?.domainUser;
-    if (domainVal && String(domainVal).trim() && String(domainVal).trim().toUpperCase() !== 'N/A' && String(domainVal).trim().toUpperCase() !== '---') {
+    let domainVal = persona?.domainUser || persona?.usuarioDominio || persona?.dominio || asignacion?.domainUser;
+    let siesaVal = persona?.siesaUser || persona?.usuarioSiesa || persona?.siesa || persona?.siesa_user || persona?.erpUser || persona?.usuario_siesa || asignacion?.siesaUser;
+
+    if (!isValidCredential(domainVal) || !isValidCredential(siesaVal)) {
+      const pName = persona?.name || asignacion?.personaName;
+      const pEmail = persona?.email || asignacion?.email || persona?.office365Email;
+      const matched = findSiesaRecord(pName, isValidCredential(domainVal) ? String(domainVal) : '', pEmail);
+      if (matched) {
+        if (!isValidCredential(domainVal) && isValidCredential(matched.domain)) {
+          domainVal = matched.domain;
+        }
+        if (!isValidCredential(siesaVal) && isValidCredential(matched.siesa)) {
+          siesaVal = matched.siesa;
+        }
+      }
+    }
+
+    if (isValidCredential(domainVal)) {
       list.push({
         id: 'domain',
         descripcion: 'Acceso al Dominio',
@@ -476,8 +510,8 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         serial: 'N/A',
       });
     }
-    const siesaVal = persona?.siesaUser || persona?.usuarioSiesa || persona?.siesa || persona?.siesa_user || persona?.erpUser || persona?.usuario_siesa || asignacion?.siesaUser;
-    if (siesaVal && String(siesaVal).trim() && String(siesaVal).trim().toUpperCase() !== 'N/A' && String(siesaVal).trim().toUpperCase() !== '---') {
+
+    if (isValidCredential(siesaVal)) {
       list.push({
         id: 'siesa',
         descripcion: 'Acceso ERP SIESA',
@@ -1149,10 +1183,21 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                 <button
                   type="button"
                   onClick={() => {
-                    const curDom = persona?.domainUser || asignacion?.domainUser || '';
-                    const curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
-                    setDomainInput(curDom);
-                    setSiesaInput(curSiesa);
+                    let curDom = persona?.domainUser || asignacion?.domainUser || '';
+                    let curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
+                    if (!isValidCredential(curDom) || !isValidCredential(curSiesa)) {
+                      const matched = findSiesaRecord(
+                        persona?.name || asignacion?.personaName,
+                        isValidCredential(curDom) ? String(curDom) : '',
+                        persona?.email || asignacion?.email || persona?.office365Email
+                      );
+                      if (matched) {
+                        if (!isValidCredential(curDom) && isValidCredential(matched.domain)) curDom = matched.domain;
+                        if (!isValidCredential(curSiesa) && isValidCredential(matched.siesa)) curSiesa = matched.siesa;
+                      }
+                    }
+                    setDomainInput(isValidCredential(curDom) ? String(curDom).toLowerCase() : '');
+                    setSiesaInput(isValidCredential(curSiesa) ? String(curSiesa).toUpperCase() : '');
                     setShowCredsModal(true);
                   }}
                   style={{
@@ -1170,7 +1215,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                   }}
                   title="Configurar usuarios de Dominio y SIESA"
                 >
-                  <i className="fa-solid fa-key"></i> {persona?.domainUser || persona?.siesaUser || asignacion?.domainUser || asignacion?.siesaUser ? 'Editar Credenciales (Dominio / SIESA)' : '+ Asignar Dominio / SIESA'}
+                  <i className="fa-solid fa-key"></i> {isValidCredential(persona?.domainUser || asignacion?.domainUser) || isValidCredential(persona?.siesaUser || asignacion?.siesaUser) ? 'Editar Credenciales (Dominio / SIESA)' : '+ Asignar Dominio / SIESA'}
                 </button>
               </div>
             </div>
@@ -1218,10 +1263,21 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                             type="button"
                             className="no-print"
                             onClick={() => {
-                              const curDom = persona?.domainUser || asignacion?.domainUser || '';
-                              const curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
-                              setDomainInput(curDom);
-                              setSiesaInput(curSiesa);
+                              let curDom = persona?.domainUser || asignacion?.domainUser || '';
+                              let curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
+                              if (!isValidCredential(curDom) || !isValidCredential(curSiesa)) {
+                                const matched = findSiesaRecord(
+                                  persona?.name || asignacion?.personaName,
+                                  isValidCredential(curDom) ? String(curDom) : '',
+                                  persona?.email || asignacion?.email || persona?.office365Email
+                                );
+                                if (matched) {
+                                  if (!isValidCredential(curDom) && isValidCredential(matched.domain)) curDom = matched.domain;
+                                  if (!isValidCredential(curSiesa) && isValidCredential(matched.siesa)) curSiesa = matched.siesa;
+                                }
+                              }
+                              setDomainInput(isValidCredential(curDom) ? String(curDom).toLowerCase() : '');
+                              setSiesaInput(isValidCredential(curSiesa) ? String(curSiesa).toUpperCase() : '');
                               setShowCredsModal(true);
                             }}
                             style={{

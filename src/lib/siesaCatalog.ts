@@ -437,6 +437,23 @@ export function normalizeStr(str?: string): string {
     .trim();
 }
 
+export function isValidCredential(val: any): boolean {
+  if (!val) return false;
+  const s = String(val).trim().toUpperCase();
+  return (
+    s !== "" &&
+    s !== "---" &&
+    s !== "N/A" &&
+    s !== "NA" &&
+    s !== "NO REGISTRADO" &&
+    s !== "NOREGISTRADO" &&
+    s !== "NO APLICA" &&
+    s !== "NINGUNO" &&
+    s !== "UNDEFINED" &&
+    s !== "NULL"
+  );
+}
+
 export function findSiesaRecord(name?: string, domain?: string, email?: string): SiesaCatalogEntry | null {
   const emLower = (email || "").toLowerCase().trim();
   const candidateNames: string[] = [];
@@ -448,10 +465,11 @@ export function findSiesaRecord(name?: string, domain?: string, email?: string):
   // 1. Coincidencia por nombres de candidatos (nombre registrado o nombre mapeado por correo)
   for (const cand of candidateNames) {
     const pNorm = normalizeStr(cand);
-    if (!pNorm) continue;
+    if (!pNorm || pNorm.length < 3) continue;
     const pWords = pNorm.split(" ").filter((w) => w.length > 2);
     const byName = SIESA_CATALOG.find((item) => {
       const cNorm = normalizeStr(item.name);
+      if (!cNorm || cNorm.length < 3) return false;
       if (pNorm === cNorm || pNorm.includes(cNorm) || cNorm.includes(pNorm)) return true;
       const matchCount = pWords.filter((w) => cNorm.includes(w)).length;
       return matchCount >= 2;
@@ -461,9 +479,10 @@ export function findSiesaRecord(name?: string, domain?: string, email?: string):
 
   // 2. Coincidencia por usuario de dominio
   const domNorm = normalizeStr(domain);
-  if (domNorm) {
+  if (domNorm && domNorm.length >= 3 && domNorm !== 'na' && domNorm !== 'noregistrado') {
     const byDom = SIESA_CATALOG.find((item) => {
       const dNorm = normalizeStr(item.domain);
+      if (!dNorm || dNorm.length < 3) return false;
       return dNorm === domNorm || dNorm.includes(domNorm) || domNorm.includes(dNorm);
     });
     if (byDom) return byDom;
@@ -471,17 +490,19 @@ export function findSiesaRecord(name?: string, domain?: string, email?: string):
 
   // 3. Coincidencia por prefijo del correo electrónico contra siesa o dominio
   const emPrefix = normalizeStr(emLower.split("@")[0]);
-  if (emPrefix) {
+  if (emPrefix && emPrefix.length >= 3) {
     const cleanEm = emPrefix.replace(/[^a-z0-9]/g, "");
-    const byEm = SIESA_CATALOG.find((item) => {
-      const sNorm = normalizeStr(item.siesa).replace(/[^a-z0-9]/g, "");
-      const dNorm = normalizeStr(item.domain).replace(/[^a-z0-9]/g, "");
-      return (
-        (sNorm && (sNorm.includes(cleanEm) || cleanEm.includes(sNorm))) ||
-        (dNorm && (dNorm.includes(cleanEm) || cleanEm.includes(dNorm)))
-      );
-    });
-    if (byEm) return byEm;
+    if (cleanEm.length >= 3) {
+      const byEm = SIESA_CATALOG.find((item) => {
+        const sNorm = normalizeStr(item.siesa).replace(/[^a-z0-9]/g, "");
+        const dNorm = normalizeStr(item.domain).replace(/[^a-z0-9]/g, "");
+        return (
+          (sNorm.length >= 3 && (sNorm.includes(cleanEm) || cleanEm.includes(sNorm))) ||
+          (dNorm.length >= 3 && (dNorm.includes(cleanEm) || cleanEm.includes(dNorm)))
+        );
+      });
+      if (byEm) return byEm;
+    }
   }
 
   return null;

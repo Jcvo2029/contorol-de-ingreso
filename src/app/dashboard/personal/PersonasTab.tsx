@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, deleteDoc, doc, updateDoc, getDocs, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { findSiesaRecord } from '@/lib/siesaCatalog';
+import { findSiesaRecord, isValidCredential } from '@/lib/siesaCatalog';
 import Link from 'next/link';
 import './personas.css';
 
@@ -237,14 +237,18 @@ export default function PersonasPage() {
     let updatedCount = 0;
     try {
       for (const p of personas) {
-        if (!p.siesaUser || !p.domainUser || p.siesaUser === 'N/A' || p.domainUser === 'N/A') {
-          const match = findSiesaRecord(p.name, p.domainUser !== 'N/A' ? p.domainUser : '', p.email || p.office365Email);
+        if (!isValidCredential(p.siesaUser) || !isValidCredential(p.domainUser)) {
+          const match = findSiesaRecord(
+            p.name,
+            isValidCredential(p.domainUser) ? String(p.domainUser) : '',
+            p.email || p.office365Email
+          );
           if (match) {
             const updates: any = {};
-            if ((!p.siesaUser || p.siesaUser === 'N/A') && match.siesa && match.siesa !== 'N/A' && match.siesa !== '---') {
+            if (!isValidCredential(p.siesaUser) && isValidCredential(match.siesa)) {
               updates.siesaUser = match.siesa.trim().toUpperCase();
             }
-            if ((!p.domainUser || p.domainUser === 'N/A') && match.domain && match.domain !== 'N/A' && match.domain !== '---') {
+            if (!isValidCredential(p.domainUser) && isValidCredential(match.domain)) {
               updates.domainUser = match.domain.trim().toLowerCase();
             }
             if (Object.keys(updates).length > 0) {
