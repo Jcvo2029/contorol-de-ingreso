@@ -5,6 +5,7 @@ import { db } from '@/lib/firebase';
 import { QRCodeSVG } from 'qrcode.react';
 import SignatureCanvas from 'react-signature-canvas';
 import './equipos.css';
+import SearchablePersonaSelect from '@/components/SearchablePersonaSelect';
 
 const getEquipmentIcon = (type?: string) => {
   if (!type) return 'fa-laptop';
@@ -1306,12 +1307,11 @@ export default function EquiposPage() {
                 </div>
                 <div className="form-group">
                   <label>Usuario Asignado (Opcional)</label>
-                  <select value={assignedUser} onChange={e => setAssignedUser(e.target.value)}>
-                    <option value="">-- Sin asignar --</option>
-                    {personas.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                  <SearchablePersonaSelect
+                    value={assignedUser}
+                    onChange={setAssignedUser}
+                    personas={personas}
+                  />
                 </div>
               </div>
 
@@ -2234,12 +2234,11 @@ export default function EquiposPage() {
               {equipmentType === 'Impresora' ? (
                 <div className="form-group">
                   <label>Asignar a Usuario Principal (Se refleja en Personas)</label>
-                  <select value={assignedPrinterUser} onChange={e => setAssignedPrinterUser(e.target.value)}>
-                    <option value="">-- Sin asignar --</option>
-                    {personas.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} ({p.area || 'Sin área'})</option>
-                    ))}
-                  </select>
+                  <SearchablePersonaSelect
+                    value={assignedPrinterUser}
+                    onChange={setAssignedPrinterUser}
+                    personas={personas}
+                  />
                 </div>
               ) : (
                 <div className="form-group">
@@ -2261,12 +2260,11 @@ export default function EquiposPage() {
                       </a>
                     </div>
                   ) : (
-                    <select value={assignedUser} onChange={e => setAssignedUser(e.target.value)}>
-                      <option value="">-- Sin asignar --</option>
-                      {personas.map(p => (
-                        <option key={p.id} value={p.id}>{p.name}</option>
-                      ))}
-                    </select>
+                    <SearchablePersonaSelect
+                      value={assignedUser}
+                      onChange={setAssignedUser}
+                      personas={personas}
+                    />
                   )}
                 </div>
               )}

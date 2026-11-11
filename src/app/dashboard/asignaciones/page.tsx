@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import SearchablePersonaSelect from '@/components/SearchablePersonaSelect';
 import './asignaciones.css';
 
 interface Persona {
@@ -216,13 +217,12 @@ export default function AsignacionesPage() {
           <div className="form-row" style={{ display: 'flex', gap: '16px', marginBottom: '24px' }}>
             <div className="form-group" style={{ flex: '1' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#374151', fontWeight: 500 }}>Persona *</label>
-              <select value={selectedPersona} onChange={(e) => setSelectedPersona(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', outline: 'none' }}>
-                <option value="">-- Seleccionar Persona --</option>
-                {personas.map(p => (
-                  <option key={p.id} value={p.id}>{p.name} (ID: {p.idNumber})</option>
-                ))}
-              </select>
+              <SearchablePersonaSelect
+                value={selectedPersona}
+                onChange={setSelectedPersona}
+                personas={personas}
+                placeholder="-- Seleccionar Persona --"
+              />
             </div>
             <div className="form-group" style={{ flex: '1' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#374151', fontWeight: 500 }}>Equipo Disponible *</label>
