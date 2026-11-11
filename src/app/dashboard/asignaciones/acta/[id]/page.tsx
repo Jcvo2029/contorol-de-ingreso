@@ -177,11 +177,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
           let currentSiesa = personaData?.siesaUser || personaData?.usuarioSiesa || personaData?.siesa || asigData?.siesaUser;
 
           if (!isValidCredential(currentDomain) || !isValidCredential(currentSiesa)) {
-            const matched = findSiesaRecord(
-              personaData?.name || asigData?.personaName,
-              isValidCredential(currentDomain) ? String(currentDomain) : '',
-              personaData?.email || asigData?.email || personaData?.office365Email
-            );
+            const pName = (personaData?.name || asigData?.personaName || '').trim();
+            const pEmail = (personaData?.email || asigData?.email || '').trim();
+            const pO365Email = (personaData?.office365Email || '').trim();
+
+            let matched = findSiesaRecord(pName, isValidCredential(currentDomain) ? String(currentDomain) : '', pEmail);
+            if (!matched && pO365Email) {
+              matched = findSiesaRecord(pName, isValidCredential(currentDomain) ? String(currentDomain) : '', pO365Email);
+            }
 
             if (matched) {
               const updatesPersona: Record<string, any> = {};
@@ -488,9 +491,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     let siesaVal = persona?.siesaUser || persona?.usuarioSiesa || persona?.siesa || persona?.siesa_user || persona?.erpUser || persona?.usuario_siesa || asignacion?.siesaUser;
 
     if (!isValidCredential(domainVal) || !isValidCredential(siesaVal)) {
-      const pName = persona?.name || asignacion?.personaName;
-      const pEmail = persona?.email || asignacion?.email || persona?.office365Email;
-      const matched = findSiesaRecord(pName, isValidCredential(domainVal) ? String(domainVal) : '', pEmail);
+      const pName = (persona?.name || asignacion?.personaName || '').trim();
+      const pEmail = (persona?.email || asignacion?.email || '').trim();
+      const pO365Email = (persona?.office365Email || '').trim();
+
+      let matched = findSiesaRecord(pName, isValidCredential(domainVal) ? String(domainVal) : '', pEmail);
+      if (!matched && pO365Email) {
+        matched = findSiesaRecord(pName, isValidCredential(domainVal) ? String(domainVal) : '', pO365Email);
+      }
       if (matched) {
         if (!isValidCredential(domainVal) && isValidCredential(matched.domain)) {
           domainVal = matched.domain;
@@ -619,12 +627,25 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
     });
     return updated;
   }, [entregaSelectedIds, defaultEntregaIds, availableTools]);
+
+  const effectiveDevolucionSelectedIds = useMemo(() => {
+    const base = devolucionSelectedIds && devolucionSelectedIds.length > 0 ? devolucionSelectedIds : defaultEntregaIds;
+    const updated = [...base];
+    availableTools.forEach((t) => {
+      if ((t.id === 'domain' || t.id === 'siesa' || t.id === 'office365') && !updated.includes(t.id)) {
+        updated.push(t.id);
+      }
+    });
+    return updated;
+  }, [devolucionSelectedIds, defaultEntregaIds, availableTools]);
+
   const activeIncludeMain = isDevolucion ? devolucionIncludeMain : entregaIncludeMain;
-  const activeSelectedIds = isDevolucion ? devolucionSelectedIds : effectiveEntregaSelectedIds;
+  const activeSelectedIds = isDevolucion ? effectiveDevolucionSelectedIds : effectiveEntregaSelectedIds;
   const activeExtraItems = isDevolucion ? devolucionExtraItems : entregaExtraItems;
 
   const selectedTools = useMemo(() => {
     return availableTools.filter((t) => {
+      if (t.id === 'domain' || t.id === 'siesa' || t.id === 'office365') return true;
       if (activeSelectedIds.includes(t.id)) return true;
       const norm = cleanSerialStr(t.serial);
       if (norm && norm !== 'NA' && activeSelectedIds.some((id) => id.includes(norm))) return true;
@@ -1186,11 +1207,13 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                     let curDom = persona?.domainUser || asignacion?.domainUser || '';
                     let curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
                     if (!isValidCredential(curDom) || !isValidCredential(curSiesa)) {
-                      const matched = findSiesaRecord(
-                        persona?.name || asignacion?.personaName,
-                        isValidCredential(curDom) ? String(curDom) : '',
-                        persona?.email || asignacion?.email || persona?.office365Email
-                      );
+                      const pName = (persona?.name || asignacion?.personaName || '').trim();
+                      const pEmail = (persona?.email || asignacion?.email || '').trim();
+                      const pO365Email = (persona?.office365Email || '').trim();
+                      let matched = findSiesaRecord(pName, isValidCredential(curDom) ? String(curDom) : '', pEmail);
+                      if (!matched && pO365Email) {
+                        matched = findSiesaRecord(pName, isValidCredential(curDom) ? String(curDom) : '', pO365Email);
+                      }
                       if (matched) {
                         if (!isValidCredential(curDom) && isValidCredential(matched.domain)) curDom = matched.domain;
                         if (!isValidCredential(curSiesa) && isValidCredential(matched.siesa)) curSiesa = matched.siesa;
@@ -1266,11 +1289,13 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                               let curDom = persona?.domainUser || asignacion?.domainUser || '';
                               let curSiesa = persona?.siesaUser || persona?.usuarioSiesa || asignacion?.siesaUser || '';
                               if (!isValidCredential(curDom) || !isValidCredential(curSiesa)) {
-                                const matched = findSiesaRecord(
-                                  persona?.name || asignacion?.personaName,
-                                  isValidCredential(curDom) ? String(curDom) : '',
-                                  persona?.email || asignacion?.email || persona?.office365Email
-                                );
+                                const pName = (persona?.name || asignacion?.personaName || '').trim();
+                                const pEmail = (persona?.email || asignacion?.email || '').trim();
+                                const pO365Email = (persona?.office365Email || '').trim();
+                                let matched = findSiesaRecord(pName, isValidCredential(curDom) ? String(curDom) : '', pEmail);
+                                if (!matched && pO365Email) {
+                                  matched = findSiesaRecord(pName, isValidCredential(curDom) ? String(curDom) : '', pO365Email);
+                                }
                                 if (matched) {
                                   if (!isValidCredential(curDom) && isValidCredential(matched.domain)) curDom = matched.domain;
                                   if (!isValidCredential(curSiesa) && isValidCredential(matched.siesa)) curSiesa = matched.siesa;

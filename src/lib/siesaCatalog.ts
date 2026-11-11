@@ -456,10 +456,14 @@ export function isValidCredential(val: any): boolean {
 
 export function findSiesaRecord(name?: string, domain?: string, email?: string): SiesaCatalogEntry | null {
   const emLower = (email || "").toLowerCase().trim();
+  const contexEmail = emLower.replace(/@contexsas1\.onmicrosoft\.com$/i, '@contexsas.com');
   const candidateNames: string[] = [];
   if (name && name.trim()) candidateNames.push(name.trim());
   if (EMAIL_TO_NAME_MAP[emLower] && !candidateNames.includes(EMAIL_TO_NAME_MAP[emLower])) {
     candidateNames.push(EMAIL_TO_NAME_MAP[emLower]);
+  }
+  if (EMAIL_TO_NAME_MAP[contexEmail] && !candidateNames.includes(EMAIL_TO_NAME_MAP[contexEmail])) {
+    candidateNames.push(EMAIL_TO_NAME_MAP[contexEmail]);
   }
 
   // 1. Coincidencia por nombres de candidatos (nombre registrado o nombre mapeado por correo)
