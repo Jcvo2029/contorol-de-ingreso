@@ -723,12 +723,9 @@ export default function EquiposPage() {
     setAssignedPrinterUser(initialPrinterUser);
 
     let initialUser = '';
-    const asigData = activeAssignments[equip.id];
-    if (asigData) {
-      initialUser = asigData.personaId;
-    } else if (et !== 'Impresora' && equip.serialNumber) {
-      const toolPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()));
-      if (toolPersona) initialUser = toolPersona.id;
+    const asigInfo = resolveEquipmentAssignment(equip);
+    if (asigInfo?.personaId) {
+      initialUser = asigInfo.personaId;
     }
     setAssignedUser(initialUser);
   };
@@ -892,6 +889,67 @@ export default function EquiposPage() {
     window.print();
   };
 
+  const resolveEquipmentAssignment = (equip: Equipment): { personaId: string; personaName: string; isViaTools?: boolean } | null => {
+    // 1. Coincidencia directa por ID de equipo en asignaciones activas
+    if (activeAssignments[equip.id]) {
+      const asig = activeAssignments[equip.id];
+      const p = personas.find(pers => pers.id === asig.personaId);
+      return { personaId: asig.personaId, personaName: p ? p.name : asig.personaName, isViaTools: false };
+    }
+
+    const eqSerialNorm = (equip.serialNumber || '').trim().toLowerCase();
+    const eqAssetNorm = (equip.assetCode || '').trim().toLowerCase();
+
+    if (eqSerialNorm || eqAssetNorm) {
+      // 2. Coincidencia en personas (herramientas asignadas, impresora asignada, impresoras múltiples)
+      const toolPersona = personas.find(p => {
+        if (eqSerialNorm && p.printerSerial && p.printerSerial.trim().toLowerCase() === eqSerialNorm) return true;
+        if (eqSerialNorm && Array.isArray(p.assignedPrinters) && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === eqSerialNorm)) return true;
+        if (Array.isArray(p.assignedTools) && p.assignedTools.some((at: any) => {
+          const atSerial = (at.serial || '').trim().toLowerCase();
+          if (eqSerialNorm && atSerial && (atSerial === eqSerialNorm || atSerial.includes(eqSerialNorm) || eqSerialNorm.includes(atSerial))) return true;
+          const atBrand = (at.brandModel || '').trim().toLowerCase();
+          if (eqAssetNorm && atBrand && (atBrand.includes(eqAssetNorm) || atBrand.includes(`(${eqAssetNorm})`))) return true;
+          return false;
+        })) return true;
+        return false;
+      });
+
+      if (toolPersona) {
+        return { personaId: toolPersona.id, personaName: toolPersona.name, isViaTools: true };
+      }
+
+      // 3. Coincidencia por vinculación a un computador asignado (en monitor, teclado, mouse, o especificaciones del PC)
+      const parentPC = equipments.find(pc => {
+        if (!activeAssignments[pc.id]) return false;
+        const pcMon = (pc.monitor || '').toLowerCase();
+        const pcTecl = (pc.teclado || '').toLowerCase();
+        const pcMouse = (pc.mouse || '').toLowerCase();
+        const pcSpecs = (pc.technicalSpecs || '').toLowerCase();
+
+        if (eqSerialNorm && eqSerialNorm.length >= 4) {
+          if (pcMon.includes(eqSerialNorm) || pcTecl.includes(eqSerialNorm) || pcMouse.includes(eqSerialNorm) || pcSpecs.includes(eqSerialNorm)) {
+            return true;
+          }
+        }
+        if (eqAssetNorm && eqAssetNorm.length >= 2) {
+          if (pcMon.includes(eqAssetNorm) || pcSpecs.includes(eqAssetNorm)) {
+            return true;
+          }
+        }
+        return false;
+      });
+
+      if (parentPC && activeAssignments[parentPC.id]) {
+        const asig = activeAssignments[parentPC.id];
+        const p = personas.find(pers => pers.id === asig.personaId);
+        return { personaId: asig.personaId, personaName: p ? p.name : asig.personaName, isViaTools: true };
+      }
+    }
+
+    return null;
+  };
+
   const filtered = equipments.filter(equip => {
     const et = (equip.equipmentType || '').toUpperCase();
     const bm = (equip.brandModel || '').toUpperCase();
@@ -916,20 +974,8 @@ export default function EquiposPage() {
     if (activeModule === 'Redes' && !isRedes) return false;
     if (activeModule === 'Otros Dispositivos' && belongsToMainCategory) return false;
 
-    let assignedName = '';
-    const asigData = activeAssignments[equip.id];
-    if (asigData) {
-      const p = personas.find(pers => pers.id === asigData.personaId);
-      assignedName = p ? p.name : asigData.personaName;
-    } else if (equip.serialNumber) {
-      const toolAssignedPersona = personas.find(p =>
-        p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-        (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
-      );
-      if (toolAssignedPersona) {
-        assignedName = toolAssignedPersona.name;
-      }
-    }
+    const asigInfo = resolveEquipmentAssignment(equip);
+    const assignedName = asigInfo?.personaName || '';
 
     return (equip.brandModel || '').toLowerCase().includes(search.toLowerCase()) ||
       (equip.assetCode || '').toLowerCase().includes(search.toLowerCase()) ||
@@ -953,22 +999,8 @@ export default function EquiposPage() {
   ])).filter(Boolean).sort() as string[];
 
   const getAssignedUserName = (equip: Equipment) => {
-    let assignedName = '';
-    const asigData = activeAssignments[equip.id];
-    if (asigData) {
-      const p = personas.find(pers => pers.id === asigData.personaId);
-      assignedName = p ? p.name : asigData.personaName;
-    } else if (equip.serialNumber) {
-      const toolAssignedPersona = personas.find(p =>
-        p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-        (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase())) ||
-        (p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
-      );
-      if (toolAssignedPersona) {
-        assignedName = toolAssignedPersona.name;
-      }
-    }
-    return assignedName ? ` [Usuario: ${assignedName}]` : '';
+    const asigInfo = resolveEquipmentAssignment(equip);
+    return asigInfo?.personaName ? ` [Usuario: ${asigInfo.personaName}]` : '';
   };
 
   const inventoryOptions = [
@@ -1115,25 +1147,10 @@ export default function EquiposPage() {
                 </tr>
               ) : (
                 filtered.map((equip) => {
-                  let asigData = activeAssignments[equip.id];
-                  let displayAssignedTo = '';
-                  let isAssignedViaTools = false;
-
-                  if (!asigData && equip.serialNumber) {
-                    const toolAssignedPersona = personas.find(p =>
-                      p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-                      (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
-                    );
-                    if (toolAssignedPersona) {
-                      asigData = { personaId: toolAssignedPersona.id, personaName: toolAssignedPersona.name };
-                      isAssignedViaTools = true;
-                    }
-                  }
-
-                  if (asigData) {
-                    const foundPersona = personas.find(p => p.id === asigData.personaId);
-                    displayAssignedTo = foundPersona ? foundPersona.name : (asigData.personaName || 'Asignado').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-                  }
+                  const asigInfo = resolveEquipmentAssignment(equip);
+                  const asigData = asigInfo ? { personaId: asigInfo.personaId, personaName: asigInfo.personaName } : null;
+                  const displayAssignedTo = asigInfo?.personaName ? asigInfo.personaName.toLowerCase().replace(/\b\w/g, l => l.toUpperCase()) : '';
+                  const isAssignedViaTools = !!asigInfo?.isViaTools;
 
                   return (
                     <tr key={equip.id}>
@@ -2232,19 +2249,9 @@ export default function EquiposPage() {
                       <span style={{ color: '#4b5563', fontSize: '14px' }}>
                         {(() => {
                           if (!editingEquip) return 'No disponible.';
-                          let asigData = activeAssignments[editingEquip.id];
-                          let isHerramienta = false;
-                          if (!asigData && editingEquip.serialNumber) {
-                            const toolPersona = personas.find(p =>
-                              p.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase() ||
-                              (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase())) ||
-                              (p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase()))
-                            );
-                            if (toolPersona) { asigData = { personaId: toolPersona.id, personaName: toolPersona.name }; isHerramienta = true; }
-                          }
-                          if (asigData) {
-                            const found = personas.find(p => p.id === asigData.personaId);
-                            return (found ? found.name : asigData.personaName) + (isHerramienta ? ' (Vía Herramientas)' : '');
+                          const asigInfo = resolveEquipmentAssignment(editingEquip);
+                          if (asigInfo) {
+                            return asigInfo.personaName + (asigInfo.isViaTools ? ' (Vía Herramientas)' : '');
                           }
                           return 'Sin asignar actualmente';
                         })()}
