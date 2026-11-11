@@ -46,7 +46,7 @@ interface Equipment {
   officeLicense?: string;
   accessControlList?: { nombre: string; rol: string }[];
   cctvChannels?: { numero: string; descripcion: string }[];
-  networkPorts?: { numero: string; descripcion: string }[];
+  networkPorts?: { numero: string; descripcion: string; connectedToId?: string; connectedToPort?: string }[];
   totalNetworkPorts?: number;
   ownership: string;
   photoUrl?: string;
@@ -409,7 +409,50 @@ export default function EquiposPage() {
   const handleDeleteEquipment = async (id: string, brandModel: string) => {
     if (!confirm(`¿Seguro que deseas eliminar a "${brandModel}" del Inventario?`)) return;
     try {
+      const targetEquip = equipments.find((e) => e.id === id);
       await deleteDoc(doc(db, 'equipos', id));
+
+      // Limpiar referencias en la colección personas si el equipo eliminado tenía serial
+      if (targetEquip?.serialNumber) {
+        const targetSerial = targetEquip.serialNumber.trim().toLowerCase();
+        try {
+          const persSnap = await getDocs(collection(db, 'personas'));
+          for (const pDoc of persSnap.docs) {
+            const pData = pDoc.data();
+            let needsUpdate = false;
+            const updates: any = {};
+
+            if ((pData.printerSerial || '').trim().toLowerCase() === targetSerial) {
+              updates.printerSerial = '';
+              updates.printerBrandModel = '';
+              needsUpdate = true;
+            }
+            if (Array.isArray(pData.assignedPrinters)) {
+              const filtered = pData.assignedPrinters.filter(
+                (ap: any) => (ap.serial || '').trim().toLowerCase() !== targetSerial
+              );
+              if (filtered.length !== pData.assignedPrinters.length) {
+                updates.assignedPrinters = filtered;
+                needsUpdate = true;
+              }
+            }
+            if (Array.isArray(pData.assignedTools)) {
+              const filtered = pData.assignedTools.filter(
+                (at: any) => (at.serial || '').trim().toLowerCase() !== targetSerial
+              );
+              if (filtered.length !== pData.assignedTools.length) {
+                updates.assignedTools = filtered;
+                needsUpdate = true;
+              }
+            }
+            if (needsUpdate) {
+              await updateDoc(doc(db, 'personas', pDoc.id), updates);
+            }
+          }
+        } catch (cleanupErr) {
+          console.warn("Error limpiando referencias en personas:", cleanupErr);
+        }
+      }
     } catch (error: any) {
       alert("Error al eliminar equipo: " + error.message);
     }
@@ -729,22 +772,39 @@ export default function EquiposPage() {
       });
       
       if (equipmentType === 'Impresora') {
-        const oldPersona = personas.find(p => 
-          p.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase() ||
-          (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase()))
-        );
-        
-        if (oldPersona && oldPersona.id !== assignedPrinterUser) {
-          if (oldPersona.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase()) {
-            await updateDoc(doc(db, 'personas', oldPersona.id), {
-              printerSerial: '',
-              printerBrandModel: ''
-            });
-          } else {
-            const updatedPrinters = oldPersona.assignedPrinters.filter((ap:any) => ap.serial?.trim().toLowerCase() !== editingEquip.serialNumber?.trim().toLowerCase());
-            await updateDoc(doc(db, 'personas', oldPersona.id), {
-              assignedPrinters: updatedPrinters
-            });
+        const oldSerial = (editingEquip.serialNumber || '').trim().toLowerCase();
+
+        // Sincronizar todas las personas del sistema que referencian este serial si cambió el serial o el modelo
+        if (oldSerial) {
+          for (const p of personas) {
+            let needsUpdate = false;
+            const updates: any = {};
+            if ((p.printerSerial || '').trim().toLowerCase() === oldSerial) {
+              if (assignedPrinterUser && p.id !== assignedPrinterUser) {
+                updates.printerSerial = '';
+                updates.printerBrandModel = '';
+                needsUpdate = true;
+              } else {
+                updates.printerSerial = serialNumber.trim();
+                updates.printerBrandModel = brandModel.trim();
+                needsUpdate = true;
+              }
+            }
+            if (Array.isArray(p.assignedPrinters)) {
+              const updated = p.assignedPrinters.map((ap: any) => {
+                if ((ap.serial || '').trim().toLowerCase() === oldSerial) {
+                  needsUpdate = true;
+                  return { ...ap, serial: serialNumber.trim(), brandModel: brandModel.trim() };
+                }
+                return ap;
+              });
+              if (needsUpdate) {
+                updates.assignedPrinters = updated;
+              }
+            }
+            if (needsUpdate) {
+              await updateDoc(doc(db, 'personas', p.id), updates);
+            }
           }
         }
         

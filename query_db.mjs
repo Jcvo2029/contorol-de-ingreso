@@ -14,17 +14,25 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 async function main() {
-  const equiposSnapshot = await getDocs(query(collection(db, "equipos"), limit(2)));
-  console.log("=== Equipos ===");
-  equiposSnapshot.forEach(doc => console.log(doc.id, doc.data()));
+  console.log("=== EQUIPOS (Printers / 1790170929291 / 111nw / 135w / M401n) ===");
+  const eqSnap = await getDocs(collection(db, "equipos"));
+  eqSnap.forEach(doc => {
+    const d = doc.data();
+    const str = JSON.stringify(d);
+    if (str.includes("1790170929291") || str.includes("111nw") || str.includes("135w") || str.includes("M401n") || d.equipmentType === 'Impresora') {
+      console.log(`[EQUIPO] ID: ${doc.id} | Tipo: ${d.equipmentType} | Modelo: ${d.brandModel} | Serial: ${d.serialNumber} | Asignado: ${d.assignedTo} | Area: ${d.area || d.ubicacion}`);
+    }
+  });
 
-  const personasSnapshot = await getDocs(query(collection(db, "personas"), limit(5)));
-  console.log("=== Personas ===");
-  personasSnapshot.forEach(doc => console.log(doc.id, doc.data()));
-
-  const asignacionesSnapshot = await getDocs(query(collection(db, "asignaciones"), limit(2)));
-  console.log("=== Asignaciones ===");
-  asignacionesSnapshot.forEach(doc => console.log(doc.id, doc.data()));
+  console.log("\n=== PERSONAS (Printers / 1790170929291 / 111nw / 135w / M401n) ===");
+  const perSnap = await getDocs(collection(db, "personas"));
+  perSnap.forEach(doc => {
+    const d = doc.data();
+    const str = JSON.stringify(d);
+    if (str.includes("1790170929291") || str.includes("111nw") || str.includes("135w") || str.includes("M401n") || d.printerBrandModel) {
+      console.log(`[PERSONA] ID: ${doc.id} | Nombre: ${d.name} | Area: ${d.area} | Printer: ${d.printerBrandModel} | Serial: ${d.printerSerial} | AssignedPrinters: ${JSON.stringify(d.assignedPrinters || [])}`);
+    }
+  });
 }
 
 main().catch(console.error);

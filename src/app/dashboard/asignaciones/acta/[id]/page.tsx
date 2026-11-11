@@ -43,6 +43,11 @@ const isComputerType = (type?: string) => {
   );
 };
 
+const cleanSerialStr = (s?: string) => {
+  if (!s) return '';
+  return s.trim().toUpperCase().replace(/^S\/?N\s*[:.-]?\s*/i, '').replace(/[\s-_]/g, '');
+};
+
 export default function ActaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = React.use(params);
   const id = resolvedParams.id;
@@ -161,27 +166,106 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
             }
           }
 
-          // Fetch Area's shared printers if this persona doesn't have it directly
+          // Cargar el inventario real y activo de impresoras desde 'equipos' como fuente de verdad
+          const activePrintersMap = new Map<string, { brandModel: string; serial: string; id: string }>();
+          try {
+            const qPrinters = query(collection(db, 'equipos'), where('equipmentType', '==', 'Impresora'));
+            const printersSnap = await getDocs(qPrinters);
+            printersSnap.docs.forEach((docSnap) => {
+              const eq = docSnap.data();
+              if (eq.status !== 'Dado de baja' && eq.status !== 'Baja') {
+                const norm = cleanSerialStr(eq.serialNumber);
+                if (norm) {
+                  activePrintersMap.set(norm, {
+                    id: docSnap.id,
+                    brandModel: eq.brandModel || 'Impresora',
+                    serial: eq.serialNumber || norm,
+                  });
+                }
+              }
+            });
+          } catch (err) {
+            console.warn('Error precargando inventario de impresoras:', err);
+          }
+
+          // Si la persona tiene impresora asignada directamente pero fue modificada o eliminada en inventario:
+          if (personaData && personaData.printerSerial && activePrintersMap.size > 0) {
+            const norm = cleanSerialStr(personaData.printerSerial);
+            const official = activePrintersMap.get(norm);
+            if (official) {
+              personaData.printerBrandModel = official.brandModel;
+              personaData.printerSerial = official.serial;
+            } else if (norm) {
+              // Ya no existe en inventario (fue borrada)
+              personaData.printerBrandModel = '';
+              personaData.printerSerial = '';
+            }
+          }
+
+          // Cargar impresoras compartidas del área sin duplicados y verificando inventario
           if (personaData && personaData.area) {
-             const qArea = query(collection(db, 'personas'), where('area', '==', personaData.area));
-             const areaSnapshot = await getDocs(qArea);
-             let shared: any[] = [];
-             areaSnapshot.docs.forEach(d => {
-               if (d.id !== asigData.personaId) {
-                 const p = d.data();
-                 if (p.printerBrandModel) {
-                   shared.push({ brandModel: p.printerBrandModel, serial: p.printerSerial, mainUser: p.name });
-                 }
-                 if (p.assignedPrinters) {
-                   p.assignedPrinters.forEach((ap:any) => {
-                     shared.push({ brandModel: ap.brandModel, serial: ap.serial, mainUser: p.name });
-                   });
-                 }
-               }
-             });
-             if (shared.length > 0) {
-               setSharedPrinters(shared);
-             }
+            const qArea = query(collection(db, 'personas'), where('area', '==', personaData.area));
+            const areaSnapshot = await getDocs(qArea);
+
+            const ownSerials = new Set<string>();
+            if (personaData.printerSerial) {
+              ownSerials.add(cleanSerialStr(personaData.printerSerial));
+            }
+            if (Array.isArray(personaData.assignedPrinters)) {
+              personaData.assignedPrinters.forEach((ap: any) => {
+                if (ap.serial) ownSerials.add(cleanSerialStr(ap.serial));
+              });
+            }
+
+            const sharedMap = new Map<string, { brandModel: string; serial: string; mainUser?: string }>();
+
+            areaSnapshot.docs.forEach((d) => {
+              if (d.id !== asigData.personaId) {
+                const p = d.data();
+                const candidates: { brandModel?: string; serial?: string }[] = [];
+                if (p.printerBrandModel) {
+                  candidates.push({ brandModel: p.printerBrandModel, serial: p.printerSerial });
+                }
+                if (Array.isArray(p.assignedPrinters)) {
+                  p.assignedPrinters.forEach((ap: any) => {
+                    candidates.push({ brandModel: ap.brandModel, serial: ap.serial });
+                  });
+                }
+
+                candidates.forEach((cand) => {
+                  const norm = cleanSerialStr(cand.serial);
+                  // Si la persona de esta acta ya tiene esta impresora asignada directamente, no agregarla como compartida
+                  if (norm && ownSerials.has(norm)) return;
+
+                  let finalBrand = cand.brandModel || 'Impresora';
+                  let finalSerial = cand.serial || 'N/A';
+
+                  // Si tenemos el inventario de equipos y la impresora tiene serial:
+                  if (activePrintersMap.size > 0 && norm) {
+                    const official = activePrintersMap.get(norm);
+                    if (!official) {
+                      // La impresora fue eliminada del inventario -> Omitir
+                      return;
+                    }
+                    // Usar datos oficiales y actualizados del inventario
+                    finalBrand = official.brandModel;
+                    finalSerial = official.serial;
+                  }
+
+                  // Deduplicación en el área
+                  const dedupKey = norm || finalBrand.trim().toLowerCase();
+                  if (!sharedMap.has(dedupKey)) {
+                    sharedMap.set(dedupKey, {
+                      brandModel: finalBrand,
+                      serial: finalSerial,
+                      mainUser: p.name,
+                    });
+                  }
+                });
+              }
+            });
+
+            setSharedPrinters(Array.from(sharedMap.values()));
           }
 
           // Fetch Equipo details
@@ -359,8 +443,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     }
     persona?.assignedPrinters?.forEach((ap: any, i: number) => {
+      const norm = cleanSerialStr(ap.serial);
       list.push({
-        id: `assigned-printer:${i}:${ap.serial || ap.brandModel || ''}`,
+        id: `assigned-printer:${norm || i}`,
         descripcion: 'Impresora Adicional',
         detalle: formatText(ap.brandModel),
         sistemaTipo: 'Hardware',
@@ -370,8 +455,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     });
     sharedPrinters.forEach((sp: any, i: number) => {
+      const norm = cleanSerialStr(sp.serial);
       list.push({
-        id: `shared-printer:${i}:${sp.serial || sp.brandModel || ''}`,
+        id: `shared-printer:${norm || i}`,
         descripcion: 'Impresora de Área (Compartida)',
         detalle: formatText(sp.brandModel),
         sistemaTipo: 'Hardware',
@@ -382,8 +468,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     });
     persona?.assignedTools?.forEach((at: any, i: number) => {
+      const norm = cleanSerialStr(at.serial);
       list.push({
-        id: `assigned-tool:${i}:${at.serial || at.brandModel || ''}`,
+        id: `assigned-tool:${norm || i}`,
         descripcion: formatText(at.equipmentType) || 'Herramienta Tecnológica',
         detalle: formatText(at.brandModel),
         sistemaTipo: 'Hardware',
@@ -393,8 +480,9 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
       });
     });
     otrosEquipos.forEach((oe: any, i: number) => {
+      const norm = cleanSerialStr(oe.serialNumber);
       list.push({
-        id: `otro-equipo:${oe.asignacionId || `${i}:${oe.serialNumber || ''}`}`,
+        id: `otro-equipo:${oe.asignacionId || oe.id || norm || i}`,
         descripcion: formatText(oe.equipmentType) || 'Periférico / Accesorio',
         detalle: formatText(oe.brandModel),
         sistemaTipo: 'Hardware',
@@ -404,7 +492,25 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         uppercaseSerial: true,
       });
     });
-    return list;
+
+    // Filtro global estricto contra duplicados
+    const seenKeys = new Set<string>();
+    const deduplicatedList: SelectableToolItem[] = [];
+
+    for (const item of list) {
+      const norm = cleanSerialStr(item.serial);
+      const isRealSerial = norm && norm !== 'NA' && norm !== 'NOREV' && norm !== 'NOREGISTRADO' && norm !== '---';
+      const key = isRealSerial
+        ? `serial:${norm}`
+        : `desc:${(item.descripcion || '').trim().toLowerCase()}|${(item.detalle || '').trim().toLowerCase()}`;
+
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
+        deduplicatedList.push(item);
+      }
+    }
+
+    return deduplicatedList;
   }, [persona, sharedPrinters, otrosEquipos]);
 
   const isDevolucion = viewMode === 'devolucion' && asignacion?.estado === 'Devuelto';
@@ -419,10 +525,14 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
   const activeSelectedIds = isDevolucion ? devolucionSelectedIds : effectiveEntregaSelectedIds;
   const activeExtraItems = isDevolucion ? devolucionExtraItems : entregaExtraItems;
 
-  const selectedTools = useMemo(
-    () => availableTools.filter((t) => activeSelectedIds.includes(t.id)),
-    [availableTools, activeSelectedIds]
-  );
+  const selectedTools = useMemo(() => {
+    return availableTools.filter((t) => {
+      if (activeSelectedIds.includes(t.id)) return true;
+      const norm = cleanSerialStr(t.serial);
+      if (norm && norm !== 'NA' && activeSelectedIds.some((id) => id.includes(norm))) return true;
+      return false;
+    });
+  }, [availableTools, activeSelectedIds]);
 
   const hasAnyToolsToRender = selectedTools.length > 0 || activeExtraItems.length > 0;
 
@@ -941,6 +1051,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                     <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Usuario / Detalle</th>
                     <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Sistema / Tipo</th>
                     <th style={{ padding: '8px', fontSize: '12px', color: '#6b7280' }}>Llave / Serial</th>
+                    <th className="no-print" style={{ padding: '8px', fontSize: '12px', color: '#6b7280', width: '32px', textAlign: 'center' }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -984,6 +1095,26 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                       >
                         {tool.serial}
                       </td>
+                      <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleTool(tool.id)}
+                          title="Quitar del acta"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#9ca3af',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            padding: '2px 5px',
+                            borderRadius: '4px',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
+                      </td>
                     </tr>
                   ))}
                   {activeExtraItems.map((extra) => (
@@ -995,6 +1126,26 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                       <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937' }}>{extra.sistemaTipo}</td>
                       <td style={{ padding: '8px', fontSize: '14px', color: '#1f2937', textTransform: 'uppercase' }}>
                         {extra.serial}
+                      </td>
+                      <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExtraItem(extra.id)}
+                          title="Quitar accesorio"
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#9ca3af',
+                            cursor: 'pointer',
+                            fontSize: '13px',
+                            padding: '2px 5px',
+                            borderRadius: '4px',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = '#ef4444')}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = '#9ca3af')}
+                        >
+                          <i className="fa-solid fa-xmark"></i>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1093,13 +1244,18 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               <p>
                 Hago constar la recepción {activeIncludeMain && hasAnyToolsToRender ? 'del equipo y herramientas tecnológicas descritas' : activeIncludeMain ? 'del equipo descrito' : 'de las herramientas tecnológicas descritas'}, asignados en buen estado y en las condiciones indicadas, para uso exclusivo como <strong>herramienta de trabajo</strong>.
               </p>
-              <br />
-              <p><strong>Me comprometo a:</strong></p>
-              <ul style={{ paddingLeft: '20px', marginTop: '10px' }}>
-                <li>Darles un uso exclusivamente laboral y no instalar software no autorizado.</li>
-                <li>Asumir responsabilidad económica por pérdida, robo o daños por mal uso.</li>
-                <li>Devolverlos en las mismas condiciones al cese de mis funciones o requerimiento de la empresa.</li>
-              </ul>
+              <p style={{ marginTop: '10px' }}>
+                Me comprometo a utilizar adecuadamente, durante mi permanencia en la empresa, los equipos y/o herramientas tecnológicas recibidos y mantenerlos en buen estado, dando cumplimiento a las normas y reglamentos establecidos dentro de la compañía. Declaro que he recibido información sobre el uso adecuado de los mismos.
+              </p>
+              <p style={{ marginTop: '10px' }}>
+                La pérdida o daño de estos por causas ajenas a la labor será asumida únicamente por el trabajador, excepto en casos de hurto, de acuerdo con lo establecido en la matriz de riesgos.
+              </p>
+              <p style={{ marginTop: '10px' }}>
+                Al finalizar mi contrato laboral haré entrega de los equipos, elementos y herramientas tecnológicas, en las mismas condiciones como las recibo para desempeñar mi labor.
+              </p>
+              <p style={{ marginTop: '10px' }}>
+                El presente compromiso aplica para todos los equipos y herramientas entregados relacionados anteriormente. Cualquier anomalía, cambio, sugerencia, solicitud, debe ser comunicada directamente al departamento de Sistemas y/o Mantenimiento.
+              </p>
             </>
           )}
         </div>
