@@ -1158,7 +1158,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         {/* Observaciones de Entrega / Especificaciones */}
         {((!isDevolucion && (asignacion.observaciones || viewMode === 'entrega' || asignacion.estado !== 'Devuelto')) ||
           (isDevolucion && asignacion.observaciones && devolucionIncludeSpecs)) && (
-          <div className="acta-section">
+          <div className={`acta-section ${!asignacion.observaciones?.trim() ? 'no-print' : ''}`}>
             <h3>Especificaciones Técnicas y Observaciones</h3>
             {asignacion.observaciones ? (
               <div style={{ marginTop: '5px' }}>
@@ -1204,14 +1204,17 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
                 <strong>CONTEX S.A.S.</strong>, en las condiciones especificadas, dando por{' '}
                 terminada la responsabilidad sobre dichos activos a partir de la fecha de devolución indicada.
               </p>
-              <br />
-              <p><strong>Estado en que se devuelve el equipo:</strong></p>
               {asignacion.observacionesDevolucion ? (
-                <div style={{ marginTop: '10px', padding: '12px 15px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
-                  <p>{asignacion.observacionesDevolucion}</p>
-                </div>
+                <>
+                  <br />
+                  <p><strong>Estado en que se devuelve el equipo:</strong></p>
+                  <div style={{ marginTop: '10px', padding: '12px 15px', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '6px' }}>
+                    <p>{asignacion.observacionesDevolucion}</p>
+                  </div>
+                </>
               ) : (
                 <div className="no-print" style={{ marginTop: '10px' }}>
+                  <p><strong>Estado en que se devuelve el equipo:</strong></p>
                   <textarea
                     value={observacionesDevolucion}
                     onChange={(e) => setObservacionesDevolucion(e.target.value)}

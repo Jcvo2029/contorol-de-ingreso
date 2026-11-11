@@ -64,7 +64,7 @@ const getTonerColor = (reference: string, totalPages: number) => {
   else if (ref === 'CF283A') limit = 1800;
   else if (ref === 'CE505A') limit = 1800;
   else if (ref === 'CE505X') limit = 3000;
-  
+
   if (limit === 0) return '#047857'; // Default Green
   if (totalPages >= limit) return '#dc2626'; // Red
   if (totalPages >= limit * 0.8) return '#d97706'; // Yellow
@@ -121,7 +121,7 @@ export default function EquiposPage() {
   const [activeModule, setActiveModule] = useState('Computadores');
   const [activeAssignments, setActiveAssignments] = useState<Record<string, { personaId: string, personaName: string }>>({});
   const [personas, setPersonas] = useState<any[]>([]);
-  
+
   // History Modal State
   const [showHistoryModal, setShowHistoryModal] = useState<Equipment | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
@@ -139,7 +139,7 @@ export default function EquiposPage() {
   const [tonerSignatureError, setTonerSignatureError] = useState('');
   const [cctvGridSize, setCctvGridSize] = useState<string>('auto');
   const [showTonerReport, setShowTonerReport] = useState(false);
-  const [tonerReportMode, setTonerReportMode] = useState<'actual'|'historico'>('actual');
+  const [tonerReportMode, setTonerReportMode] = useState<'actual' | 'historico'>('actual');
 
   // Form State
   const [assetCode, setAssetCode] = useState('');
@@ -185,7 +185,7 @@ export default function EquiposPage() {
   const [selectedConnectionDevice, setSelectedConnectionDevice] = useState('');
   const [selectedConnectionDeviceSearch, setSelectedConnectionDeviceSearch] = useState('');
   const [selectedConnectionPort, setSelectedConnectionPort] = useState('');
-  const [inputMode, setInputMode] = useState<'manual'|'inventory'>('inventory');
+  const [inputMode, setInputMode] = useState<'manual' | 'inventory'>('inventory');
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -253,11 +253,11 @@ export default function EquiposPage() {
     setEquipmentType('Portátil');
     setBrandModel('');
     setTechnicalSpecs('');
-    setProcesador(''); setBoard(''); setRam(''); setDiscoDuro(''); 
+    setProcesador(''); setBoard(''); setRam(''); setDiscoDuro('');
     setMonitor(''); setHasMonitor(false);
     setTeclado(''); setHasTeclado(false);
     setMouse(''); setHasMouse(false);
-    setUnidadCD(false); setParlantes(false); 
+    setUnidadCD(false); setParlantes(false);
     setOsVersion(''); setWindowsLicense(''); setOfficeLicense('');
     setTipoImpresora('Laserjet');
     setIpAddress('');
@@ -290,14 +290,15 @@ export default function EquiposPage() {
           const remotePorts = remoteEq.networkPorts || [];
           const existingIndex = remotePorts.findIndex((rp: any) => rp.numero === port.connectedToPort);
           const myDesc = `${sourceDesc} - P${port.numero}`;
-          
+
           let needsUpdate = false;
           let newRemotePorts = [...remotePorts];
-          
+
           if (existingIndex >= 0) {
-            if (newRemotePorts[existingIndex].connectedToId !== sourceId || newRemotePorts[existingIndex].connectedToPort !== port.numero || newRemotePorts[existingIndex].descripcion !== myDesc) {
+            const existingPort = newRemotePorts[existingIndex] as any;
+            if (existingPort.connectedToId !== sourceId || existingPort.connectedToPort !== port.numero || existingPort.descripcion !== myDesc) {
               newRemotePorts[existingIndex] = {
-                ...newRemotePorts[existingIndex],
+                ...existingPort,
                 descripcion: myDesc,
                 connectedToId: sourceId,
                 connectedToPort: port.numero
@@ -311,10 +312,10 @@ export default function EquiposPage() {
               connectedToId: sourceId,
               connectedToPort: port.numero
             });
-            newRemotePorts.sort((a:any,b:any) => parseInt(a.numero) - parseInt(b.numero));
+            newRemotePorts.sort((a: any, b: any) => parseInt(a.numero) - parseInt(b.numero));
             needsUpdate = true;
           }
-          
+
           if (needsUpdate) {
             try {
               await updateDoc(doc(db, 'equipos', remoteEq.id), { networkPorts: newRemotePorts });
@@ -363,13 +364,13 @@ export default function EquiposPage() {
         status: 'Dentro',
         createdAt: serverTimestamp()
       });
-      
+
       if (assignedUser) {
         const persona = personas.find(p => p.id === assignedUser);
         if (persona) {
           const etUpper = (equipmentType === 'Otro' ? customEquipmentType : equipmentType).toUpperCase();
           const isComputador = etUpper.includes('PC') || etUpper.includes('PORTÁTIL') || etUpper.includes('PORTATIL') || etUpper.includes('SERVIDOR') || etUpper.includes('ESCRITORIO');
-          
+
           if (isComputador) {
             await addDoc(collection(db, 'asignaciones'), {
               equipoId: docRef.id,
@@ -386,7 +387,7 @@ export default function EquiposPage() {
           }
         }
       }
-      
+
       if (networkPorts && networkPorts.length > 0) {
         let assignedInfo = '';
         if (assignedUser) {
@@ -395,7 +396,7 @@ export default function EquiposPage() {
         }
         await syncRemotePorts(docRef.id, `${assetCode.trim()} | ${brandModel.trim()}${assignedInfo}`, networkPorts);
       }
-      
+
       resetForm();
       setShowAddModal(false);
     } catch (error: any) {
@@ -463,32 +464,32 @@ export default function EquiposPage() {
       alert("Por favor completa todos los campos (Fechas y Páginas) antes de guardar.");
       return;
     }
-    
+
     const initial = parseInt(tonerInitial);
     const final = parseInt(tonerFinal);
     const total = final - initial;
-    
+
     if (isNaN(initial) || isNaN(final) || total < 0) {
       alert("Las páginas deben ser números válidos y las finales deben ser mayores a las iniciales.");
       return;
     }
 
-      try {
-        const iDateFmt = tonerInstallationDate.replace('T', ' ');
-        const rDateFmt = tonerRemovalDate.replace('T', ' ');
+    try {
+      const iDateFmt = tonerInstallationDate.replace('T', ' ');
+      const rDateFmt = tonerRemovalDate.replace('T', ' ');
 
-        const newEntry = { 
-          installationDate: iDateFmt, 
-          removalDate: rDateFmt, 
-          initialPages: initial, 
-          finalPages: final, 
-          totalPages: total, 
-          reference: tonerReference 
-        };
-      
+      const newEntry = {
+        installationDate: iDateFmt,
+        removalDate: rDateFmt,
+        initialPages: initial,
+        finalPages: final,
+        totalPages: total,
+        reference: tonerReference
+      };
+
       let updatedHistory = [...(showHistoryModal.tonerHistory || [])];
       let addedIndex = -1;
-      
+
       if (editingTonerIndex !== null) {
         updatedHistory[editingTonerIndex] = { ...updatedHistory[editingTonerIndex], ...newEntry };
         addedIndex = editingTonerIndex;
@@ -496,14 +497,14 @@ export default function EquiposPage() {
         updatedHistory.push(newEntry);
         addedIndex = updatedHistory.length - 1;
       }
-      
+
       await updateDoc(doc(db, 'equipos', showHistoryModal.id), {
         tonerHistory: updatedHistory
       });
-      
+
       const updatedEquip = { ...showHistoryModal, tonerHistory: updatedHistory };
       setShowHistoryModal(updatedEquip);
-      
+
       setTonerInstallationDate('');
       setTonerRemovalDate('');
       setTonerInitial('');
@@ -516,7 +517,7 @@ export default function EquiposPage() {
       if (!(updatedHistory[addedIndex] as any).signature) {
         openTonerActa(updatedEquip, addedIndex);
       }
-      
+
     } catch (error: any) {
       alert("Error al guardar tóner: " + error.message);
     }
@@ -525,11 +526,11 @@ export default function EquiposPage() {
   const handleEditToner = (index: number) => {
     if (!showHistoryModal || !showHistoryModal.tonerHistory) return;
     const item = showHistoryModal.tonerHistory[index];
-    
+
     let iDate = item.installationDate || item.date || '';
     if (iDate && iDate.length === 10) iDate += 'T00:00';
     else if (iDate && iDate.includes(' ')) iDate = iDate.replace(' ', 'T');
-    
+
     let rDate = item.removalDate || '';
     if (rDate && rDate.length === 10) rDate += 'T00:00';
     else if (rDate && rDate.includes(' ')) rDate = rDate.replace(' ', 'T');
@@ -563,7 +564,7 @@ export default function EquiposPage() {
         let rDate = lastEntry.removalDate || '';
         if (rDate && rDate.length === 10) rDate += 'T00:00';
         else if (rDate && rDate.includes(' ')) rDate = rDate.replace(' ', 'T');
-        
+
         setTonerInstallationDate(rDate);
         setTonerInitial(lastEntry.finalPages.toString());
         setTonerReference(lastEntry.reference || '');
@@ -614,7 +615,7 @@ export default function EquiposPage() {
   const handleDeleteToner = async (index: number) => {
     if (!showHistoryModal || !showHistoryModal.tonerHistory) return;
     if (!confirm("¿Seguro que deseas eliminar este registro de tóner?")) return;
-    
+
     try {
       const updatedHistory = showHistoryModal.tonerHistory.filter((_, i) => i !== index);
       await updateDoc(doc(db, 'equipos', showHistoryModal.id), {
@@ -663,12 +664,12 @@ export default function EquiposPage() {
     setEditingEquip(equip);
     setAssetCode(equip.assetCode || '');
     setSerialNumber(equip.serialNumber || '');
-    
+
     let et = equip.equipmentType || 'Portátil';
     if (et.toUpperCase() === 'PC DE ESCRITORIO' || et.toUpperCase() === 'PC ESCRITORIO') et = 'PC Escritorio';
     if (et.toUpperCase() === 'PORTATIL' || et.toUpperCase() === 'PORTÁTIL' || et.toUpperCase() === 'PC PORTATIL' || et.toUpperCase() === 'PC PORTÁTIL') et = 'Portátil';
     if (et.toUpperCase() === 'IMPRESORA') et = 'Impresora';
-    
+
     const predefinedTypes = ['Portátil', 'PC Escritorio', 'Monitor', 'Tablet', 'Docking Station', 'Periférico', 'Impresora', 'Teléfono', 'Control de Acceso', 'CCTV', 'Equipo de Red', 'Switch', 'Router', 'Access Point', 'Equipo de Red (General)'];
     if (predefinedTypes.includes(et)) {
       setEquipmentType(et);
@@ -677,7 +678,7 @@ export default function EquiposPage() {
       setEquipmentType('Otro');
       setCustomEquipmentType(et);
     }
-    
+
     setBrandModel(equip.brandModel || '');
     setTechnicalSpecs(equip.technicalSpecs || '');
     setProcesador(equip.procesador || '');
@@ -713,9 +714,9 @@ export default function EquiposPage() {
 
     let initialPrinterUser = '';
     if (et === 'Impresora' && equip.serialNumber) {
-      const toolPersona = personas.find(p => 
+      const toolPersona = personas.find(p =>
         p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-        (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+        (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
       );
       if (toolPersona) initialPrinterUser = toolPersona.id;
     }
@@ -726,7 +727,7 @@ export default function EquiposPage() {
     if (asigData) {
       initialUser = asigData.personaId;
     } else if (et !== 'Impresora' && equip.serialNumber) {
-      const toolPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()));
+      const toolPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()));
       if (toolPersona) initialUser = toolPersona.id;
     }
     setAssignedUser(initialUser);
@@ -770,7 +771,7 @@ export default function EquiposPage() {
         ownership,
         photoUrl: photoUrl || ''
       });
-      
+
       if (equipmentType === 'Impresora') {
         const oldSerial = (editingEquip.serialNumber || '').trim().toLowerCase();
 
@@ -807,13 +808,13 @@ export default function EquiposPage() {
             }
           }
         }
-        
+
         if (assignedPrinterUser) {
           const newPersona = personas.find(p => p.id === assignedPrinterUser);
           if (newPersona) {
             const hasInPrimary = newPersona.printerSerial?.trim().toLowerCase() === serialNumber.trim().toLowerCase();
-            const hasInAssigned = newPersona.assignedPrinters?.some((ap:any) => ap.serial?.trim().toLowerCase() === serialNumber.trim().toLowerCase());
-            
+            const hasInAssigned = newPersona.assignedPrinters?.some((ap: any) => ap.serial?.trim().toLowerCase() === serialNumber.trim().toLowerCase());
+
             if (!hasInPrimary && !hasInAssigned) {
               if (!newPersona.printerSerial) {
                 await updateDoc(doc(db, 'personas', assignedPrinterUser), {
@@ -830,35 +831,35 @@ export default function EquiposPage() {
           }
         }
       }
-      
+
       const etUpper = (equipmentType === 'Otro' ? customEquipmentType : equipmentType).toUpperCase();
       const isComputador = etUpper.includes('PC') || etUpper.includes('PORTÁTIL') || etUpper.includes('PORTATIL') || etUpper.includes('SERVIDOR') || etUpper.includes('ESCRITORIO');
-      
+
       if (equipmentType !== 'Impresora' && !isComputador) {
         const asigData = activeAssignments[editingEquip.id];
         if (asigData) {
           const qOld = query(collection(db, 'asignaciones'), where('equipoId', '==', editingEquip.id), where('estado', '==', 'Asignado'));
           const snapOld = await getDocs(qOld);
           for (const docSnap of snapOld.docs) {
-            await updateDoc(doc(db, 'asignaciones', docSnap.id), { 
-              estado: 'Devuelto', 
-              fechaDevolucion: serverTimestamp(), 
-              observacionesDevolucion: 'Convertido a Herramienta Tecnológica' 
+            await updateDoc(doc(db, 'asignaciones', docSnap.id), {
+              estado: 'Devuelto',
+              fechaDevolucion: serverTimestamp(),
+              observacionesDevolucion: 'Convertido a Herramienta Tecnológica'
             });
           }
         }
 
-        const oldPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase()));
-        
+        const oldPersona = personas.find(p => p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber?.trim().toLowerCase()));
+
         if (oldPersona && oldPersona.id !== assignedUser) {
-          const updatedTools = oldPersona.assignedTools.filter((at:any) => at.serial?.trim().toLowerCase() !== editingEquip.serialNumber?.trim().toLowerCase());
+          const updatedTools = oldPersona.assignedTools.filter((at: any) => at.serial?.trim().toLowerCase() !== editingEquip.serialNumber?.trim().toLowerCase());
           await updateDoc(doc(db, 'personas', oldPersona.id), { assignedTools: updatedTools });
         }
-        
+
         if (assignedUser) {
           const newPersona = personas.find(p => p.id === assignedUser);
           if (newPersona) {
-            const hasTool = newPersona.assignedTools?.some((at:any) => at.serial?.trim().toLowerCase() === serialNumber.trim().toLowerCase());
+            const hasTool = newPersona.assignedTools?.some((at: any) => at.serial?.trim().toLowerCase() === serialNumber.trim().toLowerCase());
             if (!hasTool) {
               const newTools = [...(newPersona.assignedTools || []), { serial: serialNumber.trim(), brandModel: brandModel.trim(), equipmentType: equipmentType === 'Otro' ? customEquipmentType : equipmentType }];
               await updateDoc(doc(db, 'personas', assignedUser), { assignedTools: newTools });
@@ -866,7 +867,7 @@ export default function EquiposPage() {
           }
         }
       }
-      
+
       if (networkPorts && networkPorts.length > 0) {
         let assignedInfo = '';
         if (assignedUser) {
@@ -894,16 +895,16 @@ export default function EquiposPage() {
   const filtered = equipments.filter(equip => {
     const et = (equip.equipmentType || '').toUpperCase();
     const bm = (equip.brandModel || '').toUpperCase();
-    
+
     const isImpresora = et.includes('IMPRESORA') || bm.includes('IMPRESORA');
     const isTelefono = et.includes('TELÉFONO') || et.includes('TELEFONO') || bm.includes('TELÉFONO');
     const isAcceso = et.includes('CONTROL DE ACCESO') || et.includes('ACCESO') || bm.includes('CONTROL DE ACCESO');
     const isCCTV = et.includes('CCTV') || et.includes('CÁMARA') || et.includes('CAMARA') || et.includes('DVR') || et.includes('NVR') || bm.includes('CCTV') || bm.includes('DVR') || bm.includes('NVR');
     const isRedes = et.includes('RED') || et.includes('SWITCH') || et.includes('ROUTER') || et.includes('PATCH PANEL') || bm.includes('SWITCH') || et.includes('ACCESS POINT');
-    
+
     // Explicitly define what a Computador is
     const isComputador = et.includes('PC') || et.includes('PORTÁTIL') || et.includes('PORTATIL') || et.includes('SERVIDOR') || et.includes('ESCRITORIO');
-    
+
     // If it doesn't match any of the main categories, it falls into "Otros Dispositivos"
     const belongsToMainCategory = isComputador || isImpresora || isTelefono || isAcceso || isCCTV || isRedes;
 
@@ -921,9 +922,9 @@ export default function EquiposPage() {
       const p = personas.find(pers => pers.id === asigData.personaId);
       assignedName = p ? p.name : asigData.personaName;
     } else if (equip.serialNumber) {
-      const toolAssignedPersona = personas.find(p => 
+      const toolAssignedPersona = personas.find(p =>
         p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-        (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+        (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
       );
       if (toolAssignedPersona) {
         assignedName = toolAssignedPersona.name;
@@ -931,12 +932,12 @@ export default function EquiposPage() {
     }
 
     return (equip.brandModel || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.assetCode || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.serialNumber || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.equipmentType || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.ownership || '').toLowerCase().includes(search.toLowerCase()) ||
-    (equip.ipAddress || '').toLowerCase().includes(search.toLowerCase()) ||
-    assignedName.toLowerCase().includes(search.toLowerCase());
+      (equip.assetCode || '').toLowerCase().includes(search.toLowerCase()) ||
+      (equip.serialNumber || '').toLowerCase().includes(search.toLowerCase()) ||
+      (equip.equipmentType || '').toLowerCase().includes(search.toLowerCase()) ||
+      (equip.ownership || '').toLowerCase().includes(search.toLowerCase()) ||
+      (equip.ipAddress || '').toLowerCase().includes(search.toLowerCase()) ||
+      assignedName.toLowerCase().includes(search.toLowerCase());
   });
 
   // Generar sugerencias únicas para autocompletado y evitar redundancia
@@ -958,10 +959,10 @@ export default function EquiposPage() {
       const p = personas.find(pers => pers.id === asigData.personaId);
       assignedName = p ? p.name : asigData.personaName;
     } else if (equip.serialNumber) {
-      const toolAssignedPersona = personas.find(p => 
+      const toolAssignedPersona = personas.find(p =>
         p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-        (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase())) ||
-        (p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+        (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase())) ||
+        (p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
       );
       if (toolAssignedPersona) {
         assignedName = toolAssignedPersona.name;
@@ -993,73 +994,73 @@ export default function EquiposPage() {
         {cctvSuggestions.map((sug, i) => <option key={i} value={sug} />)}
       </datalist>
       <div className="no-print" style={{ display: 'flex', gap: '10px', background: 'white', padding: '15px 20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)', marginBottom: '15px', overflowX: 'auto', flexWrap: 'nowrap', WebkitOverflowScrolling: 'touch' }}>
-        <button 
+        <button
           onClick={() => setActiveModule('Computadores')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Computadores' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Computadores' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Computadores' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Computadores' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-laptop" style={{ marginRight: '8px' }}></i> Computadores
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('Otros Dispositivos')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Otros Dispositivos' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Otros Dispositivos' ? '#fff' : '#374151', 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Otros Dispositivos' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Otros Dispositivos' ? '#fff' : '#374151',
             cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s', whiteSpace: 'nowrap'
           }}>
           <i className="fa-solid fa-mouse" style={{ marginRight: '8px' }}></i> Otros Dispositivos
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('Impresoras')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Impresoras' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Impresoras' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Impresoras' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Impresoras' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-print" style={{ marginRight: '8px' }}></i> Impresoras
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('Teléfonos')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Teléfonos' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Teléfonos' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Teléfonos' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Teléfonos' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-phone" style={{ marginRight: '8px' }}></i> Teléfonos
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('Control de Accesos')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Control de Accesos' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Control de Accesos' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Control de Accesos' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Control de Accesos' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-id-badge" style={{ marginRight: '8px' }}></i> Control de Accesos
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('CCTV')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'CCTV' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'CCTV' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'CCTV' ? '#4f46e5' : '#fff',
+            color: activeModule === 'CCTV' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-video" style={{ marginRight: '8px' }}></i> CCTV
         </button>
-        <button 
+        <button
           onClick={() => setActiveModule('Redes')}
-          style={{ 
-            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db', 
-            background: activeModule === 'Redes' ? '#4f46e5' : '#fff', 
-            color: activeModule === 'Redes' ? '#fff' : '#374151', 
-            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s' 
+          style={{
+            padding: '8px 16px', borderRadius: '8px', border: '1px solid #d1d5db',
+            background: activeModule === 'Redes' ? '#4f46e5' : '#fff',
+            color: activeModule === 'Redes' ? '#fff' : '#374151',
+            cursor: 'pointer', fontWeight: '500', transition: 'all 0.2s'
           }}>
           <i className="fa-solid fa-network-wired" style={{ marginRight: '8px' }}></i> Redes
         </button>
@@ -1092,7 +1093,7 @@ export default function EquiposPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        
+
         <div className="table-responsive">
           <table className="equipos-table">
             <thead>
@@ -1119,9 +1120,9 @@ export default function EquiposPage() {
                   let isAssignedViaTools = false;
 
                   if (!asigData && equip.serialNumber) {
-                    const toolAssignedPersona = personas.find(p => 
+                    const toolAssignedPersona = personas.find(p =>
                       p.printerSerial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase() ||
-                      (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
+                      (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === equip.serialNumber.trim().toLowerCase()))
                     );
                     if (toolAssignedPersona) {
                       asigData = { personaId: toolAssignedPersona.id, personaName: toolAssignedPersona.name };
@@ -1143,11 +1144,11 @@ export default function EquiposPage() {
                       <td data-label="Foto / Dispositivo">
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           {equip.photoUrl ? (
-                            <img 
-                              src={equip.photoUrl} 
-                              alt={equip.brandModel} 
+                            <img
+                              src={equip.photoUrl}
+                              alt={equip.brandModel}
                               onClick={() => setPreviewImage(equip.photoUrl || null)}
-                              style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e5e7eb', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }} 
+                              style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer', border: '1px solid #e5e7eb', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}
                               title="Haz clic para ver foto completa"
                             />
                           ) : (
@@ -1192,7 +1193,7 @@ export default function EquiposPage() {
                       <td data-label="Usuario Asignado">
                         {asigData ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#374151', fontSize: '13px' }}>
-                            <i className="fa-solid fa-user-check" style={{ color: '#4f46e5' }}></i> 
+                            <i className="fa-solid fa-user-check" style={{ color: '#4f46e5' }}></i>
                             <span style={{ fontWeight: '500' }}>{displayAssignedTo}</span>
                           </div>
                         ) : (
@@ -1210,25 +1211,25 @@ export default function EquiposPage() {
                       </td>
                       <td data-label="Acciones" className="actions-cell">
                         <button className="btn-qr" onClick={() => handleShowHistory(equip)} title="Hoja de Vida" style={{ background: '#fef08a', color: '#854d0e', border: '1px solid #eab308', marginRight: '6px' }}>
-                        <i className="fa-solid fa-file-lines"></i> Hoja de Vida
-                      </button>
-                      <button className="btn-qr" onClick={() => setSelectedQR(equip)} title="Ver QR">
-                        <i className="fa-solid fa-qrcode"></i> Ver QR
-                      </button>
-                      {userRole === 'Admin' && (
-                        <>
-                          <button className="btn-edit" onClick={() => startEditEquipment(equip)} title="Editar Equipo">
-                            <i className="fa-solid fa-pen"></i>
-                          </button>
-                          <button className="btn-delete" onClick={() => handleDeleteEquipment(equip.id, equip.brandModel)} title="Eliminar Equipo">
-                            <i className="fa-solid fa-trash"></i>
-                          </button>
-                        </>
-                      )}
-                    </td>
-                  </tr>
-                );
-              }))}
+                          <i className="fa-solid fa-file-lines"></i> Hoja de Vida
+                        </button>
+                        <button className="btn-qr" onClick={() => setSelectedQR(equip)} title="Ver QR">
+                          <i className="fa-solid fa-qrcode"></i> Ver QR
+                        </button>
+                        {userRole === 'Admin' && (
+                          <>
+                            <button className="btn-edit" onClick={() => startEditEquipment(equip)} title="Editar Equipo">
+                              <i className="fa-solid fa-pen"></i>
+                            </button>
+                            <button className="btn-delete" onClick={() => handleDeleteEquipment(equip.id, equip.brandModel)} title="Eliminar Equipo">
+                              <i className="fa-solid fa-trash"></i>
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                }))}
             </tbody>
           </table>
         </div>
@@ -1272,13 +1273,13 @@ export default function EquiposPage() {
                     <option value="Otro">Otro</option>
                   </select>
                   {equipmentType === 'Otro' && (
-                    <input 
-                      type="text" 
-                      value={customEquipmentType} 
-                      onChange={e => setCustomEquipmentType(e.target.value)} 
-                      placeholder="Escribe el tipo de equipo..." 
+                    <input
+                      type="text"
+                      value={customEquipmentType}
+                      onChange={e => setCustomEquipmentType(e.target.value)}
+                      placeholder="Escribe el tipo de equipo..."
                       style={{ marginTop: '10px' }}
-                      required 
+                      required
                     />
                   )}
                 </div>
@@ -1296,42 +1297,42 @@ export default function EquiposPage() {
                   </select>
                 </div>
               </div>
-              
+
               {((equipmentType || '').toLowerCase().includes('portátil') || (equipmentType || '').toLowerCase().includes('portatil') || (equipmentType || '').toLowerCase().includes('escritorio') || (equipmentType || '').toLowerCase().includes('servidor') || (equipmentType || '').toLowerCase().includes('computador') || (equipmentType || '').toLowerCase().includes('pc')) && (
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Componentes de Hardware</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-                    <div className="form-group"><label>Procesador</label><input type="text" value={procesador} onChange={e=>setProcesador(e.target.value)} placeholder="Ej: Core i5" /></div>
-                    <div className="form-group"><label>Board</label><input type="text" value={board} onChange={e=>setBoard(e.target.value)} /></div>
-                    <div className="form-group"><label>Memoria RAM</label><input type="text" value={ram} onChange={e=>setRam(e.target.value)} placeholder="Ej: 8GB DDR4" /></div>
-                    <div className="form-group"><label>Disco Duro</label><input type="text" value={discoDuro} onChange={e=>setDiscoDuro(e.target.value)} placeholder="Ej: 512GB SSD" /></div>
+                    <div className="form-group"><label>Procesador</label><input type="text" value={procesador} onChange={e => setProcesador(e.target.value)} placeholder="Ej: Core i5" /></div>
+                    <div className="form-group"><label>Board</label><input type="text" value={board} onChange={e => setBoard(e.target.value)} /></div>
+                    <div className="form-group"><label>Memoria RAM</label><input type="text" value={ram} onChange={e => setRam(e.target.value)} placeholder="Ej: 8GB DDR4" /></div>
+                    <div className="form-group"><label>Disco Duro</label><input type="text" value={discoDuro} onChange={e => setDiscoDuro(e.target.value)} placeholder="Ej: 512GB SSD" /></div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasMonitor} onChange={e=>setHasMonitor(e.target.checked)} />
+                        <input type="checkbox" checked={hasMonitor} onChange={e => setHasMonitor(e.target.checked)} />
                         Monitor (Marca/Serial)
                       </label>
-                      {hasMonitor && <input type="text" value={monitor} onChange={e=>setMonitor(e.target.value)} />}
+                      {hasMonitor && <input type="text" value={monitor} onChange={e => setMonitor(e.target.value)} />}
                     </div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasTeclado} onChange={e=>setHasTeclado(e.target.checked)} />
+                        <input type="checkbox" checked={hasTeclado} onChange={e => setHasTeclado(e.target.checked)} />
                         Teclado (Marca/Serial)
                       </label>
-                      {hasTeclado && <input type="text" value={teclado} onChange={e=>setTeclado(e.target.value)} />}
+                      {hasTeclado && <input type="text" value={teclado} onChange={e => setTeclado(e.target.value)} />}
                     </div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasMouse} onChange={e=>setHasMouse(e.target.checked)} />
+                        <input type="checkbox" checked={hasMouse} onChange={e => setHasMouse(e.target.checked)} />
                         Mouse (Marca/Serial)
                       </label>
-                      {hasMouse && <input type="text" value={mouse} onChange={e=>setMouse(e.target.value)} />}
+                      {hasMouse && <input type="text" value={mouse} onChange={e => setMouse(e.target.value)} />}
                     </div>
                     <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', margin: 0 }}>
-                        <input type="checkbox" checked={unidadCD} onChange={e=>setUnidadCD(e.target.checked)} /> Unidad CD/DVD
+                        <input type="checkbox" checked={unidadCD} onChange={e => setUnidadCD(e.target.checked)} /> Unidad CD/DVD
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', margin: 0 }}>
-                        <input type="checkbox" checked={parlantes} onChange={e=>setParlantes(e.target.checked)} /> Parlantes/Diadema
+                        <input type="checkbox" checked={parlantes} onChange={e => setParlantes(e.target.checked)} /> Parlantes/Diadema
                       </label>
                     </div>
                   </div>
@@ -1341,8 +1342,8 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Software y Licencias</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-                    <div className="form-group"><label>Versión de Sistema Operativo</label><input type="text" value={osVersion} onChange={e=>setOsVersion(e.target.value)} placeholder="Ej: Windows 10 Pro" /></div>
-                    <div className="form-group"><label>Licencia de Windows</label><input type="text" value={windowsLicense} onChange={e=>setWindowsLicense(e.target.value)} placeholder="Clave de producto o tipo" /></div>
+                    <div className="form-group"><label>Versión de Sistema Operativo</label><input type="text" value={osVersion} onChange={e => setOsVersion(e.target.value)} placeholder="Ej: Windows 10 Pro" /></div>
+                    <div className="form-group"><label>Licencia de Windows</label><input type="text" value={windowsLicense} onChange={e => setWindowsLicense(e.target.value)} placeholder="Clave de producto o tipo" /></div>
                     <div className="form-group">
                       <label>Licencia de Office (Usuario)</label>
                       <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '8px', border: '1px solid #e5e7eb', color: '#6b7280', fontSize: '13px' }}>
@@ -1355,7 +1356,7 @@ export default function EquiposPage() {
               {equipmentType === 'Impresora' && (
                 <div className="form-group">
                   <label>Tipo de Impresora</label>
-                  <select value={tipoImpresora} onChange={e=>setTipoImpresora(e.target.value)}>
+                  <select value={tipoImpresora} onChange={e => setTipoImpresora(e.target.value)}>
                     <option value="Laserjet">Laserjet</option>
                     <option value="Officejet">Officejet</option>
                     <option value="Matricial">Matricial</option>
@@ -1370,21 +1371,21 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Control de Acceso</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Puerta Principal" /></div>
-                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.100" /></div>
+                    <div className="form-group"><label>Ubicación</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Puerta Principal" /></div>
+                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.100" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Personal con Acceso</h4>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newAccessPerson} onChange={e=>setNewAccessPerson(e.target.value)} placeholder="Nombre del empleado" />
+                      <input type="text" value={newAccessPerson} onChange={e => setNewAccessPerson(e.target.value)} placeholder="Nombre del empleado" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newAccessRole} onChange={e=>setNewAccessRole(e.target.value)} placeholder="Rol (Ej: Administrador, Usuario)" />
+                      <input type="text" value={newAccessRole} onChange={e => setNewAccessRole(e.target.value)} placeholder="Rol (Ej: Administrador, Usuario)" />
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (newAccessPerson.trim() && newAccessRole.trim()) {
@@ -1397,7 +1398,7 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-plus"></i>
                     </button>
                   </div>
-                  
+
                   {accessControlList.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -1434,21 +1435,21 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de CCTV</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
-                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.200" /></div>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.200" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Canales de Grabación</h4>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                      <input type="number" value={newCctvChannelNumber} onChange={e=>setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
+                      <input type="number" value={newCctvChannelNumber} onChange={e => setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
+                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e => setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (newCctvChannelNumber.trim() && newCctvChannelDesc.trim()) {
@@ -1461,7 +1462,7 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-plus"></i>
                     </button>
                   </div>
-                  
+
                   {cctvChannels.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -1508,18 +1509,18 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Red</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
-                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Puertos / Conectores</h4>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                      <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
+                      <input type="number" value={newNetworkPortNumber} onChange={e => setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
-                    
+
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <select value={inputMode} onChange={e=>setInputMode(e.target.value as any)} style={{ width: '110px' }}>
+                      <select value={inputMode} onChange={e => setInputMode(e.target.value as any)} style={{ width: '110px' }}>
                         <option value="inventory">Inventario</option>
                         <option value="manual">Texto</option>
                       </select>
@@ -1527,17 +1528,17 @@ export default function EquiposPage() {
 
                     {inputMode === 'manual' ? (
                       <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
-                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e => setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                       </div>
                     ) : (
                       <div style={{ flex: 1, display: 'flex', gap: '5px', minWidth: 0 }}>
                         <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
-                          <input 
+                          <input
                             type="text"
                             style={{ width: '100%', boxSizing: 'border-box' }}
                             list="inventory-search-options"
                             placeholder="Buscar equipo o usuario..."
-                            value={selectedConnectionDeviceSearch} 
+                            value={selectedConnectionDeviceSearch}
                             onChange={e => {
                               const val = e.target.value;
                               setSelectedConnectionDeviceSearch(val);
@@ -1553,8 +1554,8 @@ export default function EquiposPage() {
                         </div>
                         {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
                           <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                            <select 
-                              value={selectedConnectionPort} 
+                            <select
+                              value={selectedConnectionPort}
                               onChange={e => setSelectedConnectionPort(e.target.value)}
                             >
                               <option value="">Puerto</option>
@@ -1567,9 +1568,9 @@ export default function EquiposPage() {
                       </div>
                     )}
 
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (inputMode === 'inventory' && selectedConnectionDevice && !selectedConnectionDevice.startsWith('pers-')) {
@@ -1606,7 +1607,7 @@ export default function EquiposPage() {
                             }
                           }
                           const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), newPortData];
-                          updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          updatedPorts.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
                           setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
@@ -1619,7 +1620,7 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-plus"></i>
                     </button>
                   </div>
-                  
+
                   {networkPorts.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -1735,13 +1736,13 @@ export default function EquiposPage() {
                     <option value="Otro">Otro</option>
                   </select>
                   {equipmentType === 'Otro' && (
-                    <input 
-                      type="text" 
-                      value={customEquipmentType} 
-                      onChange={e => setCustomEquipmentType(e.target.value)} 
-                      placeholder="Escribe el tipo de equipo..." 
+                    <input
+                      type="text"
+                      value={customEquipmentType}
+                      onChange={e => setCustomEquipmentType(e.target.value)}
+                      placeholder="Escribe el tipo de equipo..."
                       style={{ marginTop: '10px' }}
-                      required 
+                      required
                     />
                   )}
                 </div>
@@ -1750,42 +1751,42 @@ export default function EquiposPage() {
                   <input type="text" value={brandModel} onChange={e => setBrandModel(e.target.value)} placeholder="Ej: Lenovo ThinkPad T14" required />
                 </div>
               </div>
-              
+
               {((equipmentType || '').toLowerCase().includes('portátil') || (equipmentType || '').toLowerCase().includes('portatil') || (equipmentType || '').toLowerCase().includes('escritorio') || (equipmentType || '').toLowerCase().includes('servidor') || (equipmentType || '').toLowerCase().includes('computador') || (equipmentType || '').toLowerCase().includes('pc')) && (
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Componentes de Hardware</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-                    <div className="form-group"><label>Procesador</label><input type="text" value={procesador} onChange={e=>setProcesador(e.target.value)} placeholder="Ej: Core i5" /></div>
-                    <div className="form-group"><label>Board</label><input type="text" value={board} onChange={e=>setBoard(e.target.value)} /></div>
-                    <div className="form-group"><label>Memoria RAM</label><input type="text" value={ram} onChange={e=>setRam(e.target.value)} placeholder="Ej: 8GB DDR4" /></div>
-                    <div className="form-group"><label>Disco Duro</label><input type="text" value={discoDuro} onChange={e=>setDiscoDuro(e.target.value)} placeholder="Ej: 512GB SSD" /></div>
+                    <div className="form-group"><label>Procesador</label><input type="text" value={procesador} onChange={e => setProcesador(e.target.value)} placeholder="Ej: Core i5" /></div>
+                    <div className="form-group"><label>Board</label><input type="text" value={board} onChange={e => setBoard(e.target.value)} /></div>
+                    <div className="form-group"><label>Memoria RAM</label><input type="text" value={ram} onChange={e => setRam(e.target.value)} placeholder="Ej: 8GB DDR4" /></div>
+                    <div className="form-group"><label>Disco Duro</label><input type="text" value={discoDuro} onChange={e => setDiscoDuro(e.target.value)} placeholder="Ej: 512GB SSD" /></div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasMonitor} onChange={e=>setHasMonitor(e.target.checked)} />
+                        <input type="checkbox" checked={hasMonitor} onChange={e => setHasMonitor(e.target.checked)} />
                         Monitor (Marca/Serial)
                       </label>
-                      {hasMonitor && <input type="text" value={monitor} onChange={e=>setMonitor(e.target.value)} />}
+                      {hasMonitor && <input type="text" value={monitor} onChange={e => setMonitor(e.target.value)} />}
                     </div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasTeclado} onChange={e=>setHasTeclado(e.target.checked)} />
+                        <input type="checkbox" checked={hasTeclado} onChange={e => setHasTeclado(e.target.checked)} />
                         Teclado (Marca/Serial)
                       </label>
-                      {hasTeclado && <input type="text" value={teclado} onChange={e=>setTeclado(e.target.value)} />}
+                      {hasTeclado && <input type="text" value={teclado} onChange={e => setTeclado(e.target.value)} />}
                     </div>
                     <div className="form-group">
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={hasMouse} onChange={e=>setHasMouse(e.target.checked)} />
+                        <input type="checkbox" checked={hasMouse} onChange={e => setHasMouse(e.target.checked)} />
                         Mouse (Marca/Serial)
                       </label>
-                      {hasMouse && <input type="text" value={mouse} onChange={e=>setMouse(e.target.value)} />}
+                      {hasMouse && <input type="text" value={mouse} onChange={e => setMouse(e.target.value)} />}
                     </div>
                     <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', margin: 0 }}>
-                        <input type="checkbox" checked={unidadCD} onChange={e=>setUnidadCD(e.target.checked)} /> Unidad CD/DVD
+                        <input type="checkbox" checked={unidadCD} onChange={e => setUnidadCD(e.target.checked)} /> Unidad CD/DVD
                       </label>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer', margin: 0 }}>
-                        <input type="checkbox" checked={parlantes} onChange={e=>setParlantes(e.target.checked)} /> Parlantes/Diadema
+                        <input type="checkbox" checked={parlantes} onChange={e => setParlantes(e.target.checked)} /> Parlantes/Diadema
                       </label>
                     </div>
                   </div>
@@ -1795,8 +1796,8 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Software y Licencias</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '10px' }}>
-                    <div className="form-group"><label>Versión de Sistema Operativo</label><input type="text" value={osVersion} onChange={e=>setOsVersion(e.target.value)} placeholder="Ej: Windows 10 Pro" /></div>
-                    <div className="form-group"><label>Licencia de Windows</label><input type="text" value={windowsLicense} onChange={e=>setWindowsLicense(e.target.value)} placeholder="Clave de producto o tipo" /></div>
+                    <div className="form-group"><label>Versión de Sistema Operativo</label><input type="text" value={osVersion} onChange={e => setOsVersion(e.target.value)} placeholder="Ej: Windows 10 Pro" /></div>
+                    <div className="form-group"><label>Licencia de Windows</label><input type="text" value={windowsLicense} onChange={e => setWindowsLicense(e.target.value)} placeholder="Clave de producto o tipo" /></div>
                     <div className="form-group">
                       <label>Licencia de Office (Usuario)</label>
                       <div style={{ padding: '10px', background: '#f3f4f6', borderRadius: '8px', border: '1px solid #e5e7eb', color: '#374151', fontSize: '13px' }}>
@@ -1821,7 +1822,7 @@ export default function EquiposPage() {
                 <>
                   <div className="form-group">
                     <label>Tipo de Impresora</label>
-                    <select value={tipoImpresora} onChange={e=>setTipoImpresora(e.target.value)}>
+                    <select value={tipoImpresora} onChange={e => setTipoImpresora(e.target.value)}>
                       <option value="Laserjet">Laserjet</option>
                       <option value="Officejet">Officejet</option>
                       <option value="Matricial">Matricial</option>
@@ -1833,11 +1834,11 @@ export default function EquiposPage() {
                   </div>
                   <div className="form-group">
                     <label>Dirección IP (Opcional)</label>
-                    <input 
-                      type="text" 
-                      value={ipAddress} 
-                      onChange={(e) => setIpAddress(e.target.value)} 
-                      placeholder="Ej: 192.168.1.50" 
+                    <input
+                      type="text"
+                      value={ipAddress}
+                      onChange={(e) => setIpAddress(e.target.value)}
+                      placeholder="Ej: 192.168.1.50"
                     />
                   </div>
                 </>
@@ -1846,21 +1847,21 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Control de Acceso</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Puerta Principal" /></div>
-                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.100" /></div>
+                    <div className="form-group"><label>Ubicación</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Puerta Principal" /></div>
+                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.100" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Personal con Acceso</h4>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newAccessPerson} onChange={e=>setNewAccessPerson(e.target.value)} placeholder="Nombre del empleado" />
+                      <input type="text" value={newAccessPerson} onChange={e => setNewAccessPerson(e.target.value)} placeholder="Nombre del empleado" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" value={newAccessRole} onChange={e=>setNewAccessRole(e.target.value)} placeholder="Rol (Ej: Administrador, Usuario)" />
+                      <input type="text" value={newAccessRole} onChange={e => setNewAccessRole(e.target.value)} placeholder="Rol (Ej: Administrador, Usuario)" />
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (newAccessPerson.trim() && newAccessRole.trim()) {
@@ -1873,7 +1874,7 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-plus"></i>
                     </button>
                   </div>
-                  
+
                   {accessControlList.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -1910,26 +1911,26 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de CCTV</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
-                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.200" /></div>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.200" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Canales de Grabación</h4>
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                      <input type="number" value={newCctvChannelNumber} onChange={e=>setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
+                      <input type="number" value={newCctvChannelNumber} onChange={e => setNewCctvChannelNumber(e.target.value)} placeholder="N°" />
                     </div>
                     <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e=>setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
+                      <input type="text" list="cctv-destinos-sugeridos" value={newCctvChannelDesc} onChange={e => setNewCctvChannelDesc(e.target.value)} placeholder="Ubicación que graba o descripción" />
                     </div>
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (newCctvChannelNumber.trim() && newCctvChannelDesc.trim()) {
                           const updatedChannels = [...cctvChannels, { numero: newCctvChannelNumber.trim(), descripcion: newCctvChannelDesc.trim() }];
-                          updatedChannels.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          updatedChannels.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
                           setCctvChannels(updatedChannels);
                           setNewCctvChannelNumber('');
                           setNewCctvChannelDesc('');
@@ -1939,7 +1940,7 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-plus"></i>
                     </button>
                   </div>
-                  
+
                   {cctvChannels.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -1986,12 +1987,12 @@ export default function EquiposPage() {
                 <div style={{ background: '#f9fafb', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #e5e7eb' }}>
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Datos de Red</h4>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e=>setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
-                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e=>setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
+                    <div className="form-group"><label>Ubicación del Equipo</label><input type="text" value={ubicacion} onChange={e => setUbicacion(e.target.value)} placeholder="Ej: Cuarto de Racks" /></div>
+                    <div className="form-group"><label>Dirección IP (Gestión)</label><input type="text" value={ipAddress} onChange={e => setIpAddress(e.target.value)} placeholder="Ej: 192.168.1.1" /></div>
                   </div>
-                  
+
                   <h4 style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px' }}>Configuración de Puertos</h4>
-                  
+
                   <div className="form-group" style={{ marginBottom: '15px' }}>
                     <label>Total de Puertos del Equipo</label>
                     <input type="number" value={totalNetworkPorts} onChange={e => setTotalNetworkPorts(parseInt(e.target.value) || 0)} min="1" max="96" style={{ maxWidth: '150px' }} />
@@ -2005,7 +2006,7 @@ export default function EquiposPage() {
                           const portData = networkPorts.find(p => p.numero === portNum);
                           const isUsed = !!portData;
                           return (
-                            <div 
+                            <div
                               key={portNum}
                               title={isUsed ? `Puerto ${portNum}: ${portData.descripcion}` : `Puerto ${portNum} (Libre)`}
                               onClick={() => {
@@ -2013,10 +2014,10 @@ export default function EquiposPage() {
                                 setNewNetworkPortDesc(isUsed ? portData.descripcion : '');
                               }}
                               style={{
-                                width: '30px', 
-                                height: '30px', 
-                                background: isUsed ? '#10b981' : '#4b5563', 
-                                border: '2px solid #374151', 
+                                width: '30px',
+                                height: '30px',
+                                background: isUsed ? '#10b981' : '#4b5563',
+                                border: '2px solid #374151',
                                 borderRadius: '4px',
                                 display: 'flex',
                                 alignItems: 'center',
@@ -2042,11 +2043,11 @@ export default function EquiposPage() {
 
                   <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                     <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                      <input type="number" value={newNetworkPortNumber} onChange={e=>setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
+                      <input type="number" value={newNetworkPortNumber} onChange={e => setNewNetworkPortNumber(e.target.value)} placeholder="N°" />
                     </div>
-                    
+
                     <div className="form-group" style={{ marginBottom: 0 }}>
-                      <select value={inputMode} onChange={e=>setInputMode(e.target.value as any)} style={{ width: '110px' }}>
+                      <select value={inputMode} onChange={e => setInputMode(e.target.value as any)} style={{ width: '110px' }}>
                         <option value="inventory">Inventario</option>
                         <option value="manual">Texto</option>
                       </select>
@@ -2054,17 +2055,17 @@ export default function EquiposPage() {
 
                     {inputMode === 'manual' ? (
                       <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
-                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e=>setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
+                        <input type="text" list="destinos-sugeridos" value={newNetworkPortDesc} onChange={e => setNewNetworkPortDesc(e.target.value)} placeholder="Destino / Dispositivo conectado" />
                       </div>
                     ) : (
                       <div style={{ flex: 1, display: 'flex', gap: '5px', minWidth: 0 }}>
                         <div className="form-group" style={{ flex: 1, marginBottom: 0, minWidth: 0 }}>
-                          <input 
+                          <input
                             type="text"
                             style={{ width: '100%', boxSizing: 'border-box' }}
                             list="inventory-search-options"
                             placeholder="Buscar equipo o usuario..."
-                            value={selectedConnectionDeviceSearch} 
+                            value={selectedConnectionDeviceSearch}
                             onChange={e => {
                               const val = e.target.value;
                               setSelectedConnectionDeviceSearch(val);
@@ -2080,8 +2081,8 @@ export default function EquiposPage() {
                         </div>
                         {selectedConnectionDevice && equipments.find(e => e.id === selectedConnectionDevice)?.totalNetworkPorts ? (
                           <div className="form-group" style={{ width: '80px', marginBottom: 0 }}>
-                            <select 
-                              value={selectedConnectionPort} 
+                            <select
+                              value={selectedConnectionPort}
                               onChange={e => setSelectedConnectionPort(e.target.value)}
                             >
                               <option value="">Puerto</option>
@@ -2094,9 +2095,9 @@ export default function EquiposPage() {
                       </div>
                     )}
 
-                    <button 
-                      type="button" 
-                      className="btn-primary" 
+                    <button
+                      type="button"
+                      className="btn-primary"
                       style={{ padding: '8px 16px', height: '42px', marginTop: '0' }}
                       onClick={() => {
                         if (inputMode === 'inventory' && selectedConnectionDevice && !selectedConnectionDevice.startsWith('pers-')) {
@@ -2133,7 +2134,7 @@ export default function EquiposPage() {
                             }
                           }
                           const updatedPorts = [...networkPorts.filter(p => p.numero !== newNetworkPortNumber.trim()), newPortData];
-                          updatedPorts.sort((a,b) => parseInt(a.numero) - parseInt(b.numero));
+                          updatedPorts.sort((a, b) => parseInt(a.numero) - parseInt(b.numero));
                           setNetworkPorts(updatedPorts);
                           setNewNetworkPortNumber('');
                           setNewNetworkPortDesc('');
@@ -2146,8 +2147,8 @@ export default function EquiposPage() {
                       <i className="fa-solid fa-save"></i>
                     </button>
                     {newNetworkPortNumber && networkPorts.some(p => p.numero === newNetworkPortNumber) && (
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         style={{ padding: '8px 16px', height: '42px', marginTop: '0', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                         onClick={() => {
                           const updatedPorts = networkPorts.filter(p => p.numero !== newNetworkPortNumber);
@@ -2160,7 +2161,7 @@ export default function EquiposPage() {
                       </button>
                     )}
                   </div>
-                  
+
                   {networkPorts.length > 0 && (
                     <div style={{ overflowX: 'auto', border: '1px solid #d1d5db', borderRadius: '6px' }}>
                       <table className="equipos-table" style={{ margin: 0, width: '100%' }}>
@@ -2234,10 +2235,10 @@ export default function EquiposPage() {
                           let asigData = activeAssignments[editingEquip.id];
                           let isHerramienta = false;
                           if (!asigData && editingEquip.serialNumber) {
-                            const toolPersona = personas.find(p => 
+                            const toolPersona = personas.find(p =>
                               p.printerSerial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase() ||
-                              (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase())) ||
-                              (p.assignedTools && p.assignedTools.some((at:any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase()))
+                              (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase())) ||
+                              (p.assignedTools && p.assignedTools.some((at: any) => at.serial?.trim().toLowerCase() === editingEquip.serialNumber.trim().toLowerCase()))
                             );
                             if (toolPersona) { asigData = { personaId: toolPersona.id, personaName: toolPersona.name }; isHerramienta = true; }
                           }
@@ -2349,7 +2350,7 @@ export default function EquiposPage() {
                     <i className={`fa-solid ${getEquipmentIcon(showHistoryModal.equipmentType)}`}></i>
                   </div>
                 )}
-                
+
                 <div style={{ flex: 1 }}>
                   <h2 style={{ margin: '0 0 5px 0', color: '#111827', fontSize: '1.2rem' }}>{showHistoryModal.brandModel}</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px', color: '#4b5563', marginTop: '10px' }}>
@@ -2361,7 +2362,7 @@ export default function EquiposPage() {
                     {showHistoryModal.ipAddress && <div><strong>IP:</strong> {showHistoryModal.ipAddress}</div>}
                     {showHistoryModal.ubicacion && <div><strong>Ubicación:</strong> {showHistoryModal.ubicacion}</div>}
                   </div>
-                  
+
                   {showHistoryModal.accessControlList && showHistoryModal.accessControlList.length > 0 && (
                     <div style={{ marginTop: '15px' }}>
                       <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#374151' }}>Personal con Acceso</h4>
@@ -2383,7 +2384,7 @@ export default function EquiposPage() {
                       </table>
                     </div>
                   )}
-                  
+
                   {((showHistoryModal.equipmentType || '').toLowerCase().includes('portátil') || (showHistoryModal.equipmentType || '').toLowerCase().includes('escritorio') || (showHistoryModal.equipmentType || '').toLowerCase().includes('pc')) && (
                     <>
                       <h4 style={{ color: '#4b5563', borderBottom: '2px solid #e5e7eb', paddingBottom: '8px', marginBottom: '12px', marginTop: '24px' }}>Software y Licencias</h4>
@@ -2418,7 +2419,7 @@ export default function EquiposPage() {
                       <i className={`fa-solid ${addingToner ? 'fa-xmark' : 'fa-plus'}`}></i> {addingToner ? 'Cancelar' : 'Registrar Cambio'}
                     </button>
                   </div>
-                  
+
                   {addingToner && (
                     <div className="no-print" style={{ background: '#eff6ff', padding: '15px', borderRadius: '8px', marginBottom: '15px', display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
                       <div>
@@ -2480,35 +2481,35 @@ export default function EquiposPage() {
                               return dateB - dateA;
                             })
                             .map(({ t, idx }) => (
-                            <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                              <td style={{ padding: '8px' }}>{t.installationDate || t.date || 'N/A'}</td>
-                              <td style={{ padding: '8px' }}>{t.removalDate || 'N/A'}</td>
-                              <td style={{ padding: '8px' }}>{t.reference || 'N/A'}</td>
-                              <td style={{ padding: '8px' }}>{t.initialPages}</td>
-                              <td style={{ padding: '8px' }}>{t.finalPages}</td>
-                              <td style={{ padding: '8px', fontWeight: 'bold', color: getTonerColor(t.reference || '', t.totalPages) }}>{t.totalPages}</td>
-                              <td style={{ padding: '8px', color: '#4f46e5' }}>{(t.totalPages / 500).toFixed(1)}</td>
-                              <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
-                                {t.signature ? (
-                                  <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                                    <i className="fa-solid fa-file-signature"></i> Ver Acta
+                              <tr key={idx} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ padding: '8px' }}>{t.installationDate || t.date || 'N/A'}</td>
+                                <td style={{ padding: '8px' }}>{t.removalDate || 'N/A'}</td>
+                                <td style={{ padding: '8px' }}>{t.reference || 'N/A'}</td>
+                                <td style={{ padding: '8px' }}>{t.initialPages}</td>
+                                <td style={{ padding: '8px' }}>{t.finalPages}</td>
+                                <td style={{ padding: '8px', fontWeight: 'bold', color: getTonerColor(t.reference || '', t.totalPages) }}>{t.totalPages}</td>
+                                <td style={{ padding: '8px', color: '#4f46e5' }}>{(t.totalPages / 500).toFixed(1)}</td>
+                                <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
+                                  {t.signature ? (
+                                    <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                      <i className="fa-solid fa-file-signature"></i> Ver Acta
+                                    </button>
+                                  ) : (
+                                    <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                      <i className="fa-solid fa-pen-nib"></i> Firmar
+                                    </button>
+                                  )}
+                                </td>
+                                <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
+                                  <button onClick={() => handleEditToner(idx)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '8px' }} title="Editar">
+                                    <i className="fa-solid fa-pen"></i>
                                   </button>
-                                ) : (
-                                  <button onClick={() => openTonerActa(showHistoryModal, idx)} style={{ padding: '4px 8px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                                    <i className="fa-solid fa-pen-nib"></i> Firmar
+                                  <button onClick={() => handleDeleteToner(idx)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="Eliminar">
+                                    <i className="fa-solid fa-trash"></i>
                                   </button>
-                                )}
-                              </td>
-                              <td className="no-print" style={{ padding: '8px', textAlign: 'center' }}>
-                                <button onClick={() => handleEditToner(idx)} style={{ background: 'transparent', border: 'none', color: '#3b82f6', cursor: 'pointer', marginRight: '8px' }} title="Editar">
-                                  <i className="fa-solid fa-pen"></i>
-                                </button>
-                                <button onClick={() => handleDeleteToner(idx)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer' }} title="Eliminar">
-                                  <i className="fa-solid fa-trash"></i>
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                </td>
+                              </tr>
+                            ))}
                         </tbody>
                       </table>
                     </div>
@@ -2545,13 +2546,13 @@ export default function EquiposPage() {
                       </div>
                     </div>
                   )}
-                  
+
                   {showHistoryModal.equipmentType?.includes('CCTV') && showHistoryModal.cctvChannels && showHistoryModal.cctvChannels.length > 0 && (
                     <div style={{ marginBottom: '20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px' }}>
                         <h4 style={{ margin: 0, color: '#374151' }}>Representación de Canales (Monitor CCTV)</h4>
-                        <select 
-                          value={cctvGridSize} 
+                        <select
+                          value={cctvGridSize}
                           onChange={(e) => setCctvGridSize(e.target.value)}
                           style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '12px', background: '#f9fafb' }}
                         >
@@ -2564,20 +2565,20 @@ export default function EquiposPage() {
                           <option value="8">8x4 (32 Canales)</option>
                         </select>
                       </div>
-                      
+
                       {/* Monitor Bezel */}
                       <div style={{ background: '#111827', padding: '10px', borderRadius: '8px', border: '2px solid #000', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)', margin: '0 auto' }}>
                         {/* Monitor Screen / Grid */}
                         <div style={{ display: 'grid', gridTemplateColumns: cctvGridSize === 'auto' ? 'repeat(auto-fill, minmax(130px, 1fr))' : `repeat(${cctvGridSize}, 1fr)`, gap: '2px', background: '#000' }}>
-                          {[...showHistoryModal.cctvChannels].sort((a,b) => parseInt(a.numero) - parseInt(b.numero)).map((ch, i) => (
+                          {[...showHistoryModal.cctvChannels].sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).map((ch, i) => (
                             <div key={i} title={`CH ${ch.numero}: ${ch.descripcion}`} style={{ background: '#1f2937', aspectRatio: '16/9', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
                               <i className="fa-solid fa-video" style={{ color: '#374151', fontSize: '24px' }}></i>
-                              
+
                               <div style={{ position: 'absolute', top: '5px', left: '8px', display: 'flex', alignItems: 'center', gap: '5px' }}>
                                 <div style={{ width: '6px', height: '6px', background: '#ef4444', borderRadius: '50%', boxShadow: '0 0 4px #ef4444' }}></div>
                                 <span style={{ color: '#fff', fontSize: '10px', fontWeight: 'bold', textShadow: '1px 1px 2px #000' }}>CH {ch.numero}</span>
                               </div>
-                              
+
                               <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', background: 'rgba(0,0,0,0.6)', padding: '4px 8px', color: '#fff', fontSize: '10px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {ch.descripcion}
                               </div>
@@ -2594,12 +2595,12 @@ export default function EquiposPage() {
                     <div style={{ marginBottom: '20px' }}>
                       <h4 style={{ borderBottom: '2px solid #e5e7eb', paddingBottom: '5px', marginBottom: '15px', color: '#374151' }}>Representación de Puertos (Switch)</h4>
                       <div style={{ background: '#cbd5e1', padding: '15px 20px', borderRadius: '6px', border: '3px solid #94a3b8', display: 'flex', flexWrap: 'wrap', gap: '8px', maxWidth: '100%', boxShadow: 'inset 0 2px 6px rgba(0,0,0,0.1)' }}>
-                        {[...showHistoryModal.networkPorts].sort((a,b) => parseInt(a.numero) - parseInt(b.numero)).map((port, i) => (
+                        {[...showHistoryModal.networkPorts].sort((a, b) => parseInt(a.numero) - parseInt(b.numero)).map((port, i) => (
                           <div key={i} title={`Puerto ${port.numero}: ${port.descripcion}`} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', margin: '4px' }}>
                             <div style={{ fontSize: '11px', color: '#334155', fontWeight: 'bold', marginBottom: '3px' }}>{port.numero}</div>
-                            <div style={{ 
-                              width: '32px', height: '28px', 
-                              background: '#111827', 
+                            <div style={{
+                              width: '32px', height: '28px',
+                              background: '#111827',
                               border: '1px solid #000',
                               borderTop: '5px solid #475569',
                               borderRadius: '3px',
@@ -2693,8 +2694,8 @@ export default function EquiposPage() {
                 <i className="fa-solid fa-table"></i> Impresoras con Registro de Consumibles
               </h3>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  className="btn-primary" 
+                <button
+                  className="btn-primary"
                   style={{ background: tonerReportMode === 'actual' ? '#3b82f6' : '#8b5cf6', border: 'none' }}
                   onClick={() => setTonerReportMode(tonerReportMode === 'actual' ? 'historico' : 'actual')}
                 >
@@ -2742,10 +2743,10 @@ export default function EquiposPage() {
                   </thead>
                   <tbody>
                     {equipments.filter(eq => eq.tonerHistory && eq.tonerHistory.length > 0).map(eq => {
-                      const latestToner = [...eq.tonerHistory!].sort((a,b) => {
-                         const dateA = new Date(a.installationDate || a.date || 0).getTime();
-                         const dateB = new Date(b.installationDate || b.date || 0).getTime();
-                         return dateB - dateA;
+                      const latestToner = [...eq.tonerHistory!].sort((a, b) => {
+                        const dateA = new Date(a.installationDate || a.date || 0).getTime();
+                        const dateB = new Date(b.installationDate || b.date || 0).getTime();
+                        return dateB - dateA;
                       })[0];
                       const impresiones = tonerReportMode === 'historico'
                         ? eq.tonerHistory!.reduce((sum, t) => sum + (t.totalPages || 0), 0)
@@ -2753,9 +2754,9 @@ export default function EquiposPage() {
 
                       let asigData = activeAssignments[eq.id];
                       if (!asigData && eq.serialNumber) {
-                        const toolAssignedPersona = personas.find(p => 
+                        const toolAssignedPersona = personas.find(p =>
                           p.printerSerial?.trim().toLowerCase() === eq.serialNumber.trim().toLowerCase() ||
-                          (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === eq.serialNumber.trim().toLowerCase()))
+                          (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === eq.serialNumber.trim().toLowerCase()))
                         );
                         if (toolAssignedPersona) {
                           asigData = { personaId: toolAssignedPersona.id, personaName: toolAssignedPersona.name };
@@ -2769,7 +2770,7 @@ export default function EquiposPage() {
                           areaDisplay = foundPersona.area;
                         }
                       }
-                      
+
                       return (
                         <tr key={eq.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
                           <td style={{ padding: '8px', fontWeight: 'bold' }}>{areaDisplay}</td>
@@ -2806,13 +2807,13 @@ export default function EquiposPage() {
           const pers = personas.find(p => p.id === asig.personaId);
           if (pers && pers.area) actaArea = pers.area;
         } else if (showTonerActa.equip.serialNumber) {
-           const toolAssignedPersona = personas.find(p => 
-             p.printerSerial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase() ||
-             (p.assignedPrinters && p.assignedPrinters.some((ap:any) => ap.serial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase()))
-           );
-           if (toolAssignedPersona && toolAssignedPersona.area) {
-             actaArea = toolAssignedPersona.area;
-           }
+          const toolAssignedPersona = personas.find(p =>
+            p.printerSerial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase() ||
+            (p.assignedPrinters && p.assignedPrinters.some((ap: any) => ap.serial?.trim().toLowerCase() === showTonerActa.equip.serialNumber?.trim().toLowerCase()))
+          );
+          if (toolAssignedPersona && toolAssignedPersona.area) {
+            actaArea = toolAssignedPersona.area;
+          }
         }
 
         return (
@@ -2833,136 +2834,136 @@ export default function EquiposPage() {
                     <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Fecha y Hora de Emisión: {new Date().toLocaleDateString()} - {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                     <p style={{ margin: 0, color: '#6b7280', fontSize: '14px' }}>Registrado por: {userName}</p>
                   </div>
-                <img src="/img/logo-contexsas.png" alt="Contex Logo" style={{ height: '50px' }} />
-              </div>
+                  <img src="/img/logo-contexsas.png" alt="Contex Logo" style={{ height: '50px' }} />
+                </div>
 
-              <div style={{ marginBottom: '20px', lineHeight: '1.6', fontSize: '14px', color: '#374151' }}>
-                <p>
-                  Por medio del presente documento se deja constancia del cambio de tóner de la impresora detallada a continuación. 
-                  El usuario certifica que la información registrada corresponde al momento del retiro/instalación del consumible.
-                </p>
-                
-                <h4 style={{ margin: '15px 0 10px 0', color: '#111827' }}>Detalles del Equipo</h4>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
-                  <tbody>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Marca y Modelo</td>
-                      <td style={{ padding: '8px' }}>{showTonerActa.equip.brandModel}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Código Activo</td>
-                      <td style={{ padding: '8px' }}>{showTonerActa.equip.assetCode || 'N/A'}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Serial</td>
-                      <td style={{ padding: '8px' }}>{showTonerActa.equip.serialNumber || 'N/A'}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Ubicación / Área</td>
-                      <td style={{ padding: '8px' }}>{actaArea}</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <div style={{ marginBottom: '20px', lineHeight: '1.6', fontSize: '14px', color: '#374151' }}>
+                  <p>
+                    Por medio del presente documento se deja constancia del cambio de tóner de la impresora detallada a continuación.
+                    El usuario certifica que la información registrada corresponde al momento del retiro/instalación del consumible.
+                  </p>
 
-                <h4 style={{ margin: '20px 0 10px 0', color: '#111827' }}>Detalles del Consumible</h4>
-                <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
-                  <tbody>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Referencia de Tóner</td>
-                      <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.reference || 'N/A'}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Fecha Instalación</td>
-                      <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.installationDate || 'N/A'}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Contador de Páginas (Final)</td>
-                      <td style={{ padding: '8px', fontWeight: 'bold' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.finalPages || '0'}</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Total Impresas (Tóner Anterior)</td>
-                      <td style={{ padding: '8px', fontWeight: 'bold', color: '#047857' }}>
-                        {showTonerActa.tonerIndex > 0 
-                          ? showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex - 1]?.totalPages || '0'
-                          : '0'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  <h4 style={{ margin: '15px 0 10px 0', color: '#111827' }}>Detalles del Equipo</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Marca y Modelo</td>
+                        <td style={{ padding: '8px' }}>{showTonerActa.equip.brandModel}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Código Activo</td>
+                        <td style={{ padding: '8px' }}>{showTonerActa.equip.assetCode || 'N/A'}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Serial</td>
+                        <td style={{ padding: '8px' }}>{showTonerActa.equip.serialNumber || 'N/A'}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Ubicación / Área</td>
+                        <td style={{ padding: '8px' }}>{actaArea}</td>
+                      </tr>
+                    </tbody>
+                  </table>
 
-              <div style={{ marginTop: '50px' }}>
-                <div style={{ borderTop: '1px solid #000', width: '400px', margin: '0 auto', paddingTop: '10px', textAlign: 'center' }}>
-                  {showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? (
-                    <div style={{ position: 'relative', display: 'inline-block' }}>
-                      <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature as string} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
-                      <button className="no-print" onClick={async () => {
-                        if (!confirm("¿Seguro que deseas eliminar esta firma?")) return;
-                        const idx = showTonerActa.tonerIndex;
-                        const newHistory = [...showTonerActa.equip.tonerHistory!];
-                        newHistory[idx] = { ...newHistory[idx], signature: null };
-                        try {
-                          await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), { tonerHistory: newHistory });
-                          const updatedEquip = { ...showTonerActa.equip, tonerHistory: newHistory };
-                          setShowTonerActa({ equip: updatedEquip, tonerIndex: idx });
-                          if (showHistoryModal && showHistoryModal.id === updatedEquip.id) setShowHistoryModal(updatedEquip);
-                        } catch (e: any) {
-                          alert('Error al eliminar firma: ' + e.message);
-                        }
-                      }} style={{ position: 'absolute', top: '0', right: '-25px', padding: '4px 6px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }} title="Eliminar Firma">
-                        <i className="fa-solid fa-trash"></i>
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="no-print">
-                      <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6b7280' }}>Dibuje su firma aquí:</p>
-                      <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', background: '#f9fafb', padding: '10px', marginBottom: '10px', display: 'flex', justifyContent: 'center' }}>
-                        <SignatureCanvas 
-                          ref={sigCanvasToner}
-                          canvasProps={{ width: 400, height: 150, className: 'sigCanvasToner' }}
-                          penColor="black"
-                        />
-                      </div>
-                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                        <button onClick={() => sigCanvasToner.current?.clear()} style={{ padding: '5px 10px', fontSize: '12px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Limpiar</button>
-                        <button onClick={async () => {
-                          if (sigCanvasToner.current?.isEmpty()) {
-                            setTonerSignatureError('Firma requerida');
-                            return;
-                          }
-                          const sigData = sigCanvasToner.current?.getTrimmedCanvas().toDataURL('image/png');
+                  <h4 style={{ margin: '20px 0 10px 0', color: '#111827' }}>Detalles del Consumible</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+                    <tbody>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Referencia de Tóner</td>
+                        <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.reference || 'N/A'}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '30%', background: '#f9fafb' }}>Fecha Instalación</td>
+                        <td style={{ padding: '8px' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.installationDate || 'N/A'}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Contador de Páginas (Final)</td>
+                        <td style={{ padding: '8px', fontWeight: 'bold' }}>{showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.finalPages || '0'}</td>
+                      </tr>
+                      <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '8px', fontWeight: 'bold', width: '40%', background: '#f9fafb' }}>Total Impresas (Tóner Anterior)</td>
+                        <td style={{ padding: '8px', fontWeight: 'bold', color: '#047857' }}>
+                          {showTonerActa.tonerIndex > 0
+                            ? showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex - 1]?.totalPages || '0'
+                            : '0'}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style={{ marginTop: '50px' }}>
+                  <div style={{ borderTop: '1px solid #000', width: '400px', margin: '0 auto', paddingTop: '10px', textAlign: 'center' }}>
+                    {showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? (
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img src={showTonerActa.equip.tonerHistory[showTonerActa.tonerIndex].signature as string} alt="Firma Usuario" style={{ maxHeight: '100px', maxWidth: '250px', display: 'block', margin: '0 auto' }} />
+                        <button className="no-print" onClick={async () => {
+                          if (!confirm("¿Seguro que deseas eliminar esta firma?")) return;
                           const idx = showTonerActa.tonerIndex;
                           const newHistory = [...showTonerActa.equip.tonerHistory!];
-                          newHistory[idx] = { ...newHistory[idx], signature: sigData };
-                          
+                          newHistory[idx] = { ...newHistory[idx], signature: null };
                           try {
-                            await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), {
-                              tonerHistory: newHistory
-                            });
+                            await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), { tonerHistory: newHistory });
                             const updatedEquip = { ...showTonerActa.equip, tonerHistory: newHistory };
                             setShowTonerActa({ equip: updatedEquip, tonerIndex: idx });
-                            // If the history modal is open, also update its state
-                            if (showHistoryModal && showHistoryModal.id === updatedEquip.id) {
-                              setShowHistoryModal(updatedEquip);
-                            }
+                            if (showHistoryModal && showHistoryModal.id === updatedEquip.id) setShowHistoryModal(updatedEquip);
                           } catch (e: any) {
-                            alert('Error al guardar firma: ' + e.message);
+                            alert('Error al eliminar firma: ' + e.message);
                           }
-                        }} style={{ padding: '5px 10px', fontSize: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                          Guardar Firma
+                        }} style={{ position: 'absolute', top: '0', right: '-25px', padding: '4px 6px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }} title="Eliminar Firma">
+                          <i className="fa-solid fa-trash"></i>
                         </button>
                       </div>
-                      {tonerSignatureError && <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{tonerSignatureError}</p>}
+                    ) : (
+                      <div className="no-print">
+                        <p style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6b7280' }}>Dibuje su firma aquí:</p>
+                        <div style={{ border: '2px dashed #d1d5db', borderRadius: '8px', background: '#f9fafb', padding: '10px', marginBottom: '10px', display: 'flex', justifyContent: 'center' }}>
+                          <SignatureCanvas
+                            ref={sigCanvasToner}
+                            canvasProps={{ width: 400, height: 150, className: 'sigCanvasToner' }}
+                            penColor="black"
+                          />
+                        </div>
+                        <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                          <button onClick={() => sigCanvasToner.current?.clear()} style={{ padding: '5px 10px', fontSize: '12px', background: '#e5e7eb', color: '#374151', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Limpiar</button>
+                          <button onClick={async () => {
+                            if (sigCanvasToner.current?.isEmpty()) {
+                              setTonerSignatureError('Firma requerida');
+                              return;
+                            }
+                            const sigData = sigCanvasToner.current?.getTrimmedCanvas().toDataURL('image/png');
+                            const idx = showTonerActa.tonerIndex;
+                            const newHistory = [...showTonerActa.equip.tonerHistory!];
+                            newHistory[idx] = { ...newHistory[idx], signature: sigData };
+
+                            try {
+                              await updateDoc(doc(db, 'equipos', showTonerActa.equip.id), {
+                                tonerHistory: newHistory
+                              });
+                              const updatedEquip = { ...showTonerActa.equip, tonerHistory: newHistory };
+                              setShowTonerActa({ equip: updatedEquip, tonerIndex: idx });
+                              // If the history modal is open, also update its state
+                              if (showHistoryModal && showHistoryModal.id === updatedEquip.id) {
+                                setShowHistoryModal(updatedEquip);
+                              }
+                            } catch (e: any) {
+                              alert('Error al guardar firma: ' + e.message);
+                            }
+                          }} style={{ padding: '5px 10px', fontSize: '12px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                            Guardar Firma
+                          </button>
+                        </div>
+                        {tonerSignatureError && <p style={{ color: 'red', fontSize: '12px', marginTop: '5px' }}>{tonerSignatureError}</p>}
+                      </div>
+                    )}
+                    <div style={{ marginTop: showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? '10px' : '20px' }}>
+                      <strong>Firma del Usuario Responsable</strong>
                     </div>
-                  )}
-                  <div style={{ marginTop: showTonerActa.equip.tonerHistory?.[showTonerActa.tonerIndex]?.signature ? '10px' : '20px' }}>
-                    <strong>Firma del Usuario Responsable</strong>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         );
       })()}
     </div>
