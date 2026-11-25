@@ -46,6 +46,64 @@ function getTrimmedPng(sigRef: React.RefObject<SignatureCanvas | null>): { dataU
   }
 }
 
+function PdfPageCanvas({
+  pdfDoc,
+  pageNum,
+  zoom,
+  onError,
+}: {
+  pdfDoc: any;
+  pageNum: number;
+  zoom: number;
+  onError: (msg: string) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  useEffect(() => {
+    if (!pdfDoc) return;
+    let cancelled = false;
+    let renderTask: any = null;
+
+    const renderPage = async () => {
+      try {
+        const page = await pdfDoc.getPage(pageNum);
+        if (cancelled) return;
+
+        const baseViewport = page.getViewport({ scale: 1 });
+        const baseTargetWidth = Math.min(860, Math.max(540, window.innerWidth - 120));
+        const scale = (baseTargetWidth / baseViewport.width) * zoom;
+        const viewport = page.getViewport({ scale });
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        canvas.width = Math.floor(viewport.width);
+        canvas.height = Math.floor(viewport.height);
+
+        renderTask = page.render({ canvasContext: ctx, viewport });
+        await renderTask.promise;
+      } catch (err: any) {
+        if (err?.name !== 'RenderingCancelledException') {
+          console.error(`Error renderizando página ${pageNum}:`, err);
+          onError('No se pudo renderizar una página del PDF.');
+        }
+      }
+    };
+
+    renderPage();
+    return () => {
+      cancelled = true;
+      try {
+        renderTask?.cancel();
+      } catch {}
+    };
+  }, [pdfDoc, pageNum, zoom, onError]);
+
+  return <canvas ref={canvasRef} className="firmas-doc-canvas" />;
+}
+
 export default function FirmasDocumentosPage() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
@@ -64,8 +122,9 @@ export default function FirmasDocumentosPage() {
   const [errorMsg, setErrorMsg] = useState('');
 
   // Rendered document refs
-  const pdfCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const docContainerRef = useRef<HTMLDivElement | null>(null);
+  const stageScrollRef = useRef<HTMLDivElement | null>(null);
+  const pageRefs = useRef<Record<number, HTMLDivElement | null>>({});
+  const [zoom, setZoom] = useState(1);
 
   // Signatures placed on document
   const [signatures, setSignatures] = useState<PlacedSignature[]>([]);
@@ -226,49 +285,38 @@ export default function FirmasDocumentosPage() {
     };
   }, [showSignModal]);
 
-  // Render active PDF page whenever pdfDocProxy or currentPage changes
-  useEffect(() => {
-    if (fileKind !== 'pdf' || !pdfDocProxy) return;
-    let cancelled = false;
-    let renderTask: any = null;
+  const scrollToPage = (targetPage: number) => {
+    const clamped = Math.max(1, Math.min(numPages, targetPage));
+    setCurrentPage(clamped);
+    const el = pageRefs.current[clamped];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
 
-    const renderPage = async () => {
-      try {
-        const page = await pdfDocProxy.getPage(currentPage);
-        if (cancelled) return;
+  const handleStageScroll = () => {
+    const scroller = stageScrollRef.current;
+    if (!scroller || fileKind !== 'pdf' || numPages <= 1) return;
+    const scrollerRect = scroller.getBoundingClientRect();
+    const midY = scrollerRect.top + scrollerRect.height * 0.4;
 
-        const baseViewport = page.getViewport({ scale: 1 });
-        // Render crisp high-resolution canvas fitting desktop nicely (~860px wide)
-        const targetWidth = Math.min(880, Math.max(600, window.innerWidth - 100));
-        const scale = targetWidth / baseViewport.width;
-        const viewport = page.getViewport({ scale });
-
-        const canvas = pdfCanvasRef.current;
-        if (!canvas) return;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-
-        renderTask = page.render({ canvasContext: ctx, viewport });
-        await renderTask.promise;
-      } catch (err: any) {
-        if (err?.name !== 'RenderingCancelledException') {
-          console.error('Error renderizando página PDF:', err);
-          setErrorMsg('No se pudo renderizar esta página del PDF.');
-        }
+    let closestPage = currentPage;
+    let minDist = Infinity;
+    for (let p = 1; p <= numPages; p++) {
+      const el = pageRefs.current[p];
+      if (!el) continue;
+      const rect = el.getBoundingClientRect();
+      const pageMidY = rect.top + rect.height / 2;
+      const dist = Math.abs(pageMidY - midY);
+      if (dist < minDist) {
+        minDist = dist;
+        closestPage = p;
       }
-    };
-
-    renderPage();
-    return () => {
-      cancelled = true;
-      try {
-        renderTask?.cancel();
-      } catch {}
-    };
-  }, [fileKind, pdfDocProxy, currentPage]);
+    }
+    if (closestPage !== currentPage) {
+      setCurrentPage(closestPage);
+    }
+  };
 
   // Global pointer move/up listeners for dragging and resizing signatures
   useEffect(() => {
@@ -324,6 +372,8 @@ export default function FirmasDocumentosPage() {
     setLoadingFile(true);
     setSignatures([]);
     setActiveSigId(null);
+    setZoom(1);
+    pageRefs.current = {};
 
     try {
       const lower = file.name.toLowerCase();
@@ -400,7 +450,8 @@ export default function FirmasDocumentosPage() {
     aspectRatio: number,
     preferredSlot: 'left' | 'right' = 'right'
   ) => {
-    const container = docContainerRef.current;
+    const targetPage = fileKind === 'pdf' ? currentPage : 1;
+    const container = pageRefs.current[targetPage];
     const containerW = container?.clientWidth || 800;
     const containerH = container?.clientHeight || 1050;
 
@@ -412,11 +463,25 @@ export default function FirmasDocumentosPage() {
 
     const targetCenterX = preferredSlot === 'left' ? 0.26 : 0.72;
     const xPct = Math.max(0.04, Math.min(1 - wPct - 0.04, targetCenterX - wPct / 2));
-    const yPct = Math.max(0.05, Math.min(1 - hPct - 0.04, 0.78 - hPct / 2));
+
+    // Place near the currently visible vertical center of the active page inside the scroll viewer
+    let targetCenterY = 0.78;
+    const scroller = stageScrollRef.current;
+    if (scroller && container) {
+      const sRect = scroller.getBoundingClientRect();
+      const cRect = container.getBoundingClientRect();
+      const visibleTop = Math.max(sRect.top, cRect.top);
+      const visibleBottom = Math.min(sRect.bottom, cRect.bottom);
+      if (visibleBottom > visibleTop + 40) {
+        const visibleMid = (visibleTop + visibleBottom) / 2;
+        targetCenterY = (visibleMid - cRect.top) / cRect.height;
+      }
+    }
+    const yPct = Math.max(0.04, Math.min(1 - hPct - 0.04, targetCenterY - hPct / 2));
 
     const newSig: PlacedSignature = {
       id: `sig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      page: currentPage,
+      page: targetPage,
       dataUrl,
       xPct,
       yPct,
@@ -530,7 +595,7 @@ export default function FirmasDocumentosPage() {
   ) => {
     e.stopPropagation();
     e.preventDefault();
-    const container = docContainerRef.current;
+    const container = pageRefs.current[sig.page];
     if (!container) return;
 
     setActiveSigId(sig.id);
@@ -701,8 +766,6 @@ export default function FirmasDocumentosPage() {
     }
   };
 
-  const currentPageSignatures = signatures.filter((s) => s.page === currentPage);
-
   if (authorized === null) {
     return (
       <div className="firmas-wrapper" style={{ alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
@@ -846,7 +909,7 @@ export default function FirmasDocumentosPage() {
                   <button
                     type="button"
                     disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    onClick={() => scrollToPage(currentPage - 1)}
                     title="Página anterior"
                   >
                     <i className="fa-solid fa-chevron-left"></i>
@@ -857,13 +920,35 @@ export default function FirmasDocumentosPage() {
                   <button
                     type="button"
                     disabled={currentPage >= numPages}
-                    onClick={() => setCurrentPage((p) => Math.min(numPages, p + 1))}
+                    onClick={() => scrollToPage(currentPage + 1)}
                     title="Página siguiente"
                   >
                     <i className="fa-solid fa-chevron-right"></i>
                   </button>
                 </div>
               )}
+
+              <div className="firmas-page-nav" title="Zoom del visor">
+                <button
+                  type="button"
+                  disabled={zoom <= 0.6}
+                  onClick={() => setZoom((z) => Math.max(0.6, Math.round((z - 0.15) * 100) / 100))}
+                  title="Alejar"
+                >
+                  <i className="fa-solid fa-minus"></i>
+                </button>
+                <span style={{ padding: '0 6px', minWidth: '46px', textAlign: 'center' }}>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type="button"
+                  disabled={zoom >= 1.8}
+                  onClick={() => setZoom((z) => Math.min(1.8, Math.round((z + 0.15) * 100) / 100))}
+                  title="Acercar"
+                >
+                  <i className="fa-solid fa-plus"></i>
+                </button>
+              </div>
             </div>
 
             <div className="firmas-toolbar-actions">
@@ -974,52 +1059,127 @@ export default function FirmasDocumentosPage() {
             )}
           </div>
 
-          {/* Document Preview & Draggable Signatures */}
+          {/* Scrollable Multi-Page Document Viewer & Draggable Signatures */}
           <div
+            ref={stageScrollRef}
             className="firmas-stage-scroll"
+            onScroll={handleStageScroll}
             onClick={() => setActiveSigId(null)}
           >
-            <div ref={docContainerRef} className="firmas-doc-container">
-              {fileKind === 'pdf' ? (
-                <canvas ref={pdfCanvasRef} className="firmas-doc-canvas" />
-              ) : (
-                imageUrl && <img src={imageUrl} alt={fileName} className="firmas-doc-image" />
-              )}
+            {fileKind === 'pdf' ? (
+              Array.from({ length: numPages }, (_, idx) => idx + 1).map((pageNum) => {
+                const pageSigs = signatures.filter((s) => s.page === pageNum);
+                return (
+                  <div key={pageNum} className="firmas-page-block">
+                    {numPages > 1 && (
+                      <div className="firmas-page-label">
+                        Página {pageNum} de {numPages}
+                      </div>
+                    )}
+                    <div
+                      ref={(el) => {
+                        pageRefs.current[pageNum] = el;
+                      }}
+                      className="firmas-doc-container"
+                    >
+                      <PdfPageCanvas
+                        pdfDoc={pdfDocProxy}
+                        pageNum={pageNum}
+                        zoom={zoom}
+                        onError={setErrorMsg}
+                      />
 
-              {currentPageSignatures.map((sig) => (
-                <div
-                  key={sig.id}
-                  className={`placed-signature ${activeSigId === sig.id ? 'active' : ''}`}
-                  style={{
-                    left: `${sig.xPct * 100}%`,
-                    top: `${sig.yPct * 100}%`,
-                    width: `${sig.wPct * 100}%`,
-                    height: `${sig.hPct * 100}%`,
-                  }}
-                  onPointerDown={(e) => startSigInteraction(e, sig, 'move')}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <img src={sig.dataUrl} alt="Firma" draggable={false} />
-                  <button
-                    type="button"
-                    className="sig-delete-btn"
-                    title="Quitar firma"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSignatures((prev) => prev.filter((item) => item.id !== sig.id));
-                    }}
-                  >
-                    ✕
-                  </button>
+                      {pageSigs.map((sig) => (
+                        <div
+                          key={sig.id}
+                          className={`placed-signature ${activeSigId === sig.id ? 'active' : ''}`}
+                          style={{
+                            left: `${sig.xPct * 100}%`,
+                            top: `${sig.yPct * 100}%`,
+                            width: `${sig.wPct * 100}%`,
+                            height: `${sig.hPct * 100}%`,
+                          }}
+                          onPointerDown={(e) => startSigInteraction(e, sig, 'move')}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <img src={sig.dataUrl} alt="Firma" draggable={false} />
+                          <button
+                            type="button"
+                            className="sig-delete-btn"
+                            title="Quitar firma"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSignatures((prev) => prev.filter((item) => item.id !== sig.id));
+                            }}
+                          >
+                            ✕
+                          </button>
+                          <div
+                            className="sig-resize-handle"
+                            title="Arrastra para cambiar el tamaño"
+                            onPointerDown={(e) => startSigInteraction(e, sig, 'resize')}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              imageUrl && (
+                <div className="firmas-page-block">
                   <div
-                    className="sig-resize-handle"
-                    title="Arrastra para cambiar el tamaño"
-                    onPointerDown={(e) => startSigInteraction(e, sig, 'resize')}
-                  />
+                    ref={(el) => {
+                      pageRefs.current[1] = el;
+                    }}
+                    className="firmas-doc-container"
+                  >
+                    <img
+                      src={imageUrl}
+                      alt={fileName}
+                      className="firmas-doc-image"
+                      style={{ width: `${Math.round(800 * zoom)}px`, maxWidth: zoom <= 1 ? '100%' : 'none' }}
+                    />
+                    {signatures
+                      .filter((s) => s.page === 1)
+                      .map((sig) => (
+                        <div
+                          key={sig.id}
+                          className={`placed-signature ${activeSigId === sig.id ? 'active' : ''}`}
+                          style={{
+                            left: `${sig.xPct * 100}%`,
+                            top: `${sig.yPct * 100}%`,
+                            width: `${sig.wPct * 100}%`,
+                            height: `${sig.hPct * 100}%`,
+                          }}
+                          onPointerDown={(e) => startSigInteraction(e, sig, 'move')}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <img src={sig.dataUrl} alt="Firma" draggable={false} />
+                          <button
+                            type="button"
+                            className="sig-delete-btn"
+                            title="Quitar firma"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSignatures((prev) => prev.filter((item) => item.id !== sig.id));
+                            }}
+                          >
+                            ✕
+                          </button>
+                          <div
+                            className="sig-resize-handle"
+                            title="Arrastra para cambiar el tamaño"
+                            onPointerDown={(e) => startSigInteraction(e, sig, 'resize')}
+                          />
+                        </div>
+                      ))}
+                  </div>
                 </div>
-              ))}
-            </div>
+              )
+            )}
           </div>
         </div>
       )}
