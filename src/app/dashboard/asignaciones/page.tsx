@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, updateDoc, doc, deleteDoc, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import SearchablePersonaSelect from '@/components/SearchablePersonaSelect';
+import SearchableEquipoSelect from '@/components/SearchableEquipoSelect';
 import './asignaciones.css';
 
 interface Persona {
@@ -15,6 +16,8 @@ interface Equipo {
   id: string;
   assetCode: string;
   brandModel: string;
+  serialNumber?: string;
+  equipmentType?: string;
 }
 
 interface Asignacion {
@@ -82,7 +85,14 @@ export default function AsignacionesPage() {
     const unsubEqui = onSnapshot(qEqui, (snapshot) => {
       const data: Equipo[] = [];
       snapshot.forEach((doc) => {
-        data.push({ id: doc.id, assetCode: doc.data().assetCode, brandModel: doc.data().brandModel });
+        const d = doc.data();
+        data.push({
+          id: doc.id,
+          assetCode: d.assetCode || '',
+          brandModel: d.brandModel || '',
+          serialNumber: d.serialNumber || '',
+          equipmentType: d.equipmentType || '',
+        });
       });
       setEquipos(data);
     });
@@ -226,13 +236,12 @@ export default function AsignacionesPage() {
             </div>
             <div className="form-group" style={{ flex: '1' }}>
               <label style={{ display: 'block', marginBottom: '8px', fontSize: '0.9rem', color: '#374151', fontWeight: 500 }}>Equipo Disponible *</label>
-              <select value={selectedEquipo} onChange={(e) => setSelectedEquipo(e.target.value)}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #d1d5db', background: '#fff', outline: 'none' }}>
-                <option value="">-- Seleccionar Equipo --</option>
-                {equiposDisponibles.map(e => (
-                  <option key={e.id} value={e.id}>{e.assetCode} - {e.brandModel}</option>
-                ))}
-              </select>
+              <SearchableEquipoSelect
+                value={selectedEquipo}
+                onChange={setSelectedEquipo}
+                equipos={equiposDisponibles}
+                placeholder="-- Seleccionar Equipo --"
+              />
               {equiposDisponibles.length === 0 && (
                 <small style={{color: '#b91c1c', display: 'block', marginTop: '4px'}}>No hay equipos disponibles en este momento.</small>
               )}
