@@ -66,12 +66,33 @@ export default function FirmasDocumentosPage() {
   const [activeSigId, setActiveSigId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
-  // Signature pad modal
+  // Signature pad modal (fullscreen)
   const [showSignModal, setShowSignModal] = useState(false);
   const sigPadRef = useRef<SignatureCanvas | null>(null);
   const sigPadWrapRef = useRef<HTMLDivElement | null>(null);
-  const [padWidth, setPadWidth] = useState(560);
+  const [padSize, setPadSize] = useState({ width: 1200, height: 650 });
   const [padError, setPadError] = useState('');
+
+  const openSignModal = async () => {
+    setPadError('');
+    setShowSignModal(true);
+    try {
+      if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      }
+    } catch {
+      // Browser may decline fullscreen without strict gesture; viewport-fixed 100vw x 100dvh still fills entire window
+    }
+  };
+
+  const closeSignModal = async () => {
+    setShowSignModal(false);
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) {
+        await document.exitFullscreen();
+      }
+    } catch {}
+  };
 
   // Drag / Resize interaction state
   const dragStateRef = useRef<{
@@ -123,18 +144,30 @@ export default function FirmasDocumentosPage() {
     return () => unsubscribe();
   }, []);
 
-  // Measure signature modal canvas width so mouse/touch stays pixel-accurate
+  // Measure fullscreen signature canvas container (width & height) so USB signature pads & touch stay 1:1 pixel-accurate
   useEffect(() => {
     if (!showSignModal) return;
-    const syncWidth = () => {
+    const syncSize = () => {
       if (sigPadWrapRef.current) {
         const w = Math.floor(sigPadWrapRef.current.clientWidth);
-        if (w > 120) setPadWidth(w);
+        const h = Math.floor(sigPadWrapRef.current.clientHeight);
+        if (w > 100 && h > 100) {
+          setPadSize({ width: w, height: h });
+        }
       }
     };
-    syncWidth();
-    window.addEventListener('resize', syncWidth);
-    return () => window.removeEventListener('resize', syncWidth);
+    syncSize();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(syncSize) : null;
+    if (ro && sigPadWrapRef.current) {
+      ro.observe(sigPadWrapRef.current);
+    }
+    window.addEventListener('resize', syncSize);
+    document.addEventListener('fullscreenchange', syncSize);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', syncSize);
+      document.removeEventListener('fullscreenchange', syncSize);
+    };
   }, [showSignModal]);
 
   // Render active PDF page whenever pdfDocProxy or currentPage changes
@@ -337,7 +370,7 @@ export default function FirmasDocumentosPage() {
 
     setSignatures((prev) => [...prev, newSig]);
     setActiveSigId(newSig.id);
-    setShowSignModal(false);
+    closeSignModal();
   };
 
   const startSigInteraction = (
@@ -647,10 +680,7 @@ export default function FirmasDocumentosPage() {
               <button
                 type="button"
                 className="btn-ws btn-ws-sign"
-                onClick={() => {
-                  setPadError('');
-                  setShowSignModal(true);
-                }}
+                onClick={openSignModal}
               >
                 <i className="fa-solid fa-pen-nib"></i> Dibujar Firma
               </button>
@@ -756,65 +786,75 @@ export default function FirmasDocumentosPage() {
         </div>
       )}
 
-      {/* Draw Signature Modal */}
+      {/* Fullscreen Draw Signature Overlay */}
       {showSignModal && (
         <div className="firmas-modal-overlay">
           <div className="firmas-modal-content">
             <div className="firmas-modal-header">
-              <h3>
-                <i className="fa-solid fa-pen-nib" style={{ color: '#209D88' }}></i>
-                Dibujar Firma
-              </h3>
-              <button
-                type="button"
-                className="firmas-modal-close"
-                onClick={() => setShowSignModal(false)}
-              >
-                ✕
-              </button>
-            </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                <h3>
+                  <i className="fa-solid fa-pen-nib" style={{ color: '#209D88' }}></i>
+                  Área de Firma — Pantalla Completa
+                </h3>
+                {padError && (
+                  <span style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
+                    <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: '4px' }}></i>
+                    {padError}
+                  </span>
+                )}
+              </div>
 
-            <p style={{ fontSize: '0.88rem', color: '#4b5563', marginBottom: '12px' }}>
-              Firme en el recuadro blanco usando el mouse, lápiz óptico o el dedo.
-            </p>
+              <div className="firmas-modal-footer">
+                <button
+                  type="button"
+                  className="btn-ws"
+                  onClick={() => {
+                    sigPadRef.current?.clear();
+                    setPadError('');
+                  }}
+                >
+                  <i className="fa-solid fa-eraser"></i> Limpiar
+                </button>
+                <button
+                  type="button"
+                  className="btn-ws btn-ws-download"
+                  onClick={handleInsertSignature}
+                >
+                  <i className="fa-solid fa-check"></i> Insertar Firma en el Documento
+                </button>
+                <button
+                  type="button"
+                  className="firmas-modal-close"
+                  onClick={closeSignModal}
+                  title="Cerrar"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
 
             <div ref={sigPadWrapRef} className="signature-canvas-wrapper">
               <SignatureCanvas
                 ref={sigPadRef}
                 penColor="#111827"
+                minWidth={2.2}
+                maxWidth={4.5}
                 clearOnResize={false}
                 canvasProps={{
-                  width: padWidth,
-                  height: 220,
-                  style: { display: 'block', width: `${padWidth}px`, height: '220px', cursor: 'crosshair' },
+                  width: padSize.width,
+                  height: padSize.height,
+                  style: {
+                    display: 'block',
+                    width: `${padSize.width}px`,
+                    height: `${padSize.height}px`,
+                    cursor: 'crosshair',
+                  },
                 }}
               />
               <div className="signature-guide-line" />
-              <div className="signature-guide-text">Firme sobre la línea</div>
-            </div>
-
-            {padError && (
-              <p style={{ color: '#dc2626', fontSize: '0.86rem', marginBottom: '12px' }}>{padError}</p>
-            )}
-
-            <div className="firmas-modal-footer">
-              <button
-                type="button"
-                className="btn-ws"
-                onClick={() => {
-                  sigPadRef.current?.clear();
-                  setPadError('');
-                }}
-              >
-                <i className="fa-solid fa-eraser"></i> Limpiar
-              </button>
-              <button
-                type="button"
-                className="btn-ws btn-ws-download"
-                onClick={handleInsertSignature}
-              >
-                <i className="fa-solid fa-check"></i> Insertar Firma en el Documento
-              </button>
+              <div className="signature-guide-text">
+                Firme en cualquier lugar de la pantalla con la tableta de firmas, mouse o dedo
+              </div>
             </div>
           </div>
         </div>
