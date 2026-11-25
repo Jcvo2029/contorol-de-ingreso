@@ -228,6 +228,77 @@
   background: #047857;
 }
 
+.btn-ws-almacen {
+  background: #0f766e;
+  color: white;
+  border-color: #0f766e;
+  font-weight: 700;
+}
+
+.btn-ws-almacen:hover:not(:disabled) {
+  background: #115e59;
+}
+
+.saved-sig-pill {
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  font-size: 0.83rem;
+  color: #334155;
+}
+
+.saved-sig-thumb {
+  max-height: 30px;
+  max-width: 90px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 2px 6px;
+  object-fit: contain;
+}
+
+.btn-link-subtle {
+  background: none;
+  border: none;
+  color: #0f766e;
+  font-size: 0.83rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn-link-subtle:hover {
+  background: #f0fdfa;
+  text-decoration: underline;
+}
+
+.btn-link-danger {
+  background: none;
+  border: none;
+  color: #dc2626;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.btn-link-danger:hover {
+  background: #fef2f2;
+}
+
 /* Tip banner */
 .firmas-tip-bar {
   background: #f0fdfa;

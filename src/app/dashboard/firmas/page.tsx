@@ -1,13 +1,19 @@
 "use client";
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import SignatureCanvas from 'react-signature-canvas';
 import { PDFDocument, degrees } from 'pdf-lib';
 import './firmas.css';
 
 const ALMACEN_EMAIL = 'almacen@contexsas.com';
+const SAVED_SIG_STORAGE_KEY = 'contex_firma_almacen_v1';
+
+interface SavedAlmacenSignature {
+  dataUrl: string;
+  aspectRatio: number;
+}
 
 interface PlacedSignature {
   id: string;
@@ -66,15 +72,23 @@ export default function FirmasDocumentosPage() {
   const [activeSigId, setActiveSigId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
+  // Reusable saved Almacén signature
+  const [currentUserInfo, setCurrentUserInfo] = useState<{ uid: string; email: string } | null>(null);
+  const [savedAlmacenSig, setSavedAlmacenSig] = useState<SavedAlmacenSignature | null>(null);
+  const [savingAlmacenSig, setSavingAlmacenSig] = useState(false);
+  const [statusNotice, setStatusNotice] = useState('');
+
   // Signature pad modal (fullscreen)
   const [showSignModal, setShowSignModal] = useState(false);
+  const [signModalMode, setSignModalMode] = useState<'normal' | 'almacen'>('normal');
   const sigPadRef = useRef<SignatureCanvas | null>(null);
   const sigPadWrapRef = useRef<HTMLDivElement | null>(null);
   const [padSize, setPadSize] = useState({ width: 1200, height: 650 });
   const [padError, setPadError] = useState('');
 
-  const openSignModal = async () => {
+  const openSignModal = async (mode: 'normal' | 'almacen' = 'normal') => {
     setPadError('');
+    setSignModalMode(mode);
     setShowSignModal(true);
     try {
       if (document.documentElement.requestFullscreen && !document.fullscreenElement) {
@@ -133,12 +147,54 @@ export default function FirmasDocumentosPage() {
         if (userDoc.exists()) {
           const data = userDoc.data();
           if (emailLower !== ALMACEN_EMAIL && data.role) role = data.role;
+          if (data.firmaGuardada && typeof data.firmaGuardada === 'string') {
+            setSavedAlmacenSig({
+              dataUrl: data.firmaGuardada,
+              aspectRatio: Number(data.firmaGuardadaRatio) || 2.5,
+            });
+          }
         }
       } catch (err) {
         console.warn('Error verificando rol de usuario:', err);
       }
 
-      setAuthorized(emailLower === ALMACEN_EMAIL || role === 'Almacén' || role === 'Admin');
+      const isAllowed = emailLower === ALMACEN_EMAIL || role === 'Almacén' || role === 'Admin';
+      setCurrentUserInfo({ uid: fbUser.uid, email: fbUser.email || '' });
+      setAuthorized(isAllowed);
+
+      if (isAllowed) {
+        // Fast hydration from localStorage
+        try {
+          const cached = localStorage.getItem(SAVED_SIG_STORAGE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed?.dataUrl) {
+              setSavedAlmacenSig({
+                dataUrl: parsed.dataUrl,
+                aspectRatio: Number(parsed.aspectRatio) || 2.5,
+              });
+            }
+          }
+        } catch {}
+
+        // Sync shared Almacén signature from Firestore
+        try {
+          const cfgSnap = await getDoc(doc(db, 'configuracion', 'firma_almacen'));
+          if (cfgSnap.exists()) {
+            const d = cfgSnap.data();
+            if (d?.dataUrl) {
+              const sigObj: SavedAlmacenSignature = {
+                dataUrl: d.dataUrl,
+                aspectRatio: Number(d.aspectRatio) || 2.5,
+              };
+              setSavedAlmacenSig(sigObj);
+              localStorage.setItem(SAVED_SIG_STORAGE_KEY, JSON.stringify(sigObj));
+            }
+          }
+        } catch {
+          // Fallback silently to user doc / localStorage
+        }
+      }
     });
 
     return () => unsubscribe();
@@ -339,6 +395,92 @@ export default function FirmasDocumentosPage() {
     if (file) loadSelectedFile(file);
   };
 
+  const placeSignatureOnPage = (
+    dataUrl: string,
+    aspectRatio: number,
+    preferredSlot: 'left' | 'right' = 'right'
+  ) => {
+    const container = docContainerRef.current;
+    const containerW = container?.clientWidth || 800;
+    const containerH = container?.clientHeight || 1050;
+
+    // Default signature size: ~24% of page width, preserving aspect ratio
+    const defaultWpx = Math.min(220, containerW * 0.28);
+    const defaultHpx = defaultWpx / aspectRatio;
+    const wPct = Math.min(0.45, defaultWpx / containerW);
+    const hPct = Math.min(0.25, defaultHpx / containerH);
+
+    const targetCenterX = preferredSlot === 'left' ? 0.26 : 0.72;
+    const xPct = Math.max(0.04, Math.min(1 - wPct - 0.04, targetCenterX - wPct / 2));
+    const yPct = Math.max(0.05, Math.min(1 - hPct - 0.04, 0.78 - hPct / 2));
+
+    const newSig: PlacedSignature = {
+      id: `sig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      page: currentPage,
+      dataUrl,
+      xPct,
+      yPct,
+      wPct,
+      hPct,
+      aspectRatio,
+    };
+
+    setSignatures((prev) => [...prev, newSig]);
+    setActiveSigId(newSig.id);
+  };
+
+  const showTempNotice = (msg: string) => {
+    setStatusNotice(msg);
+    setTimeout(() => setStatusNotice(''), 3500);
+  };
+
+  const persistAlmacenSignature = async (sigObj: SavedAlmacenSignature | null) => {
+    setSavingAlmacenSig(true);
+    try {
+      if (sigObj) {
+        localStorage.setItem(SAVED_SIG_STORAGE_KEY, JSON.stringify(sigObj));
+        setSavedAlmacenSig(sigObj);
+        await setDoc(
+          doc(db, 'configuracion', 'firma_almacen'),
+          {
+            dataUrl: sigObj.dataUrl,
+            aspectRatio: sigObj.aspectRatio,
+            updatedAt: serverTimestamp(),
+            updatedBy: currentUserInfo?.email || ALMACEN_EMAIL,
+          },
+          { merge: true }
+        ).catch(() => {});
+        if (currentUserInfo?.uid) {
+          await setDoc(
+            doc(db, 'users', currentUserInfo.uid),
+            {
+              firmaGuardada: sigObj.dataUrl,
+              firmaGuardadaRatio: sigObj.aspectRatio,
+            },
+            { merge: true }
+          ).catch(() => {});
+        }
+      } else {
+        localStorage.removeItem(SAVED_SIG_STORAGE_KEY);
+        setSavedAlmacenSig(null);
+        await setDoc(
+          doc(db, 'configuracion', 'firma_almacen'),
+          { dataUrl: null, aspectRatio: null, updatedAt: serverTimestamp() },
+          { merge: true }
+        ).catch(() => {});
+        if (currentUserInfo?.uid) {
+          await setDoc(
+            doc(db, 'users', currentUserInfo.uid),
+            { firmaGuardada: null, firmaGuardadaRatio: null },
+            { merge: true }
+          ).catch(() => {});
+        }
+      }
+    } finally {
+      setSavingAlmacenSig(false);
+    }
+  };
+
   const handleInsertSignature = () => {
     setPadError('');
     const result = getTrimmedPng(sigPadRef);
@@ -347,30 +489,38 @@ export default function FirmasDocumentosPage() {
       return;
     }
 
-    const container = docContainerRef.current;
-    const containerW = container?.clientWidth || 800;
-    const containerH = container?.clientHeight || 1050;
-
-    // Default signature size: ~24% of page width, preserving aspect ratio
-    const defaultWpx = Math.min(220, containerW * 0.28);
-    const defaultHpx = defaultWpx / result.aspectRatio;
-    const wPct = Math.min(0.45, defaultWpx / containerW);
-    const hPct = Math.min(0.25, defaultHpx / containerH);
-
-    const newSig: PlacedSignature = {
-      id: `sig-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      page: currentPage,
-      dataUrl: result.dataUrl,
-      xPct: Math.max(0.05, 0.5 - wPct / 2),
-      yPct: Math.max(0.05, 0.78 - hPct / 2),
-      wPct,
-      hPct,
-      aspectRatio: result.aspectRatio,
-    };
-
-    setSignatures((prev) => [...prev, newSig]);
-    setActiveSigId(newSig.id);
+    placeSignatureOnPage(result.dataUrl, result.aspectRatio, 'right');
     closeSignModal();
+  };
+
+  const handleSaveAsAlmacenSignature = async (alsoInsertOnDoc: boolean) => {
+    setPadError('');
+    const result = getTrimmedPng(sigPadRef);
+    if (!result) {
+      setPadError('Por favor dibuje la firma de Almacén antes de guardar.');
+      return;
+    }
+
+    await persistAlmacenSignature(result);
+    if (alsoInsertOnDoc && fileKind) {
+      placeSignatureOnPage(result.dataUrl, result.aspectRatio, 'left');
+    }
+    await closeSignModal();
+    showTempNotice('Firma de Almacén guardada para reutilizar en futuras entregas.');
+  };
+
+  const handleInsertSavedAlmacenSig = () => {
+    if (!savedAlmacenSig) {
+      openSignModal('almacen');
+      return;
+    }
+    placeSignatureOnPage(savedAlmacenSig.dataUrl, savedAlmacenSig.aspectRatio, 'left');
+  };
+
+  const handleDeleteSavedAlmacenSig = async () => {
+    if (!confirm('¿Deseas eliminar la firma guardada de Almacén?')) return;
+    await persistAlmacenSignature(null);
+    showTempNotice('Firma guardada de Almacén eliminada.');
   };
 
   const startSigInteraction = (
@@ -630,6 +780,46 @@ export default function FirmasDocumentosPage() {
               Compatible con archivos PDF e imágenes (PNG, JPG) — o arrastra el archivo aquí
             </span>
 
+            {statusNotice && (
+              <div
+                style={{
+                  background: '#ecfdf5',
+                  border: '1px solid #6ee7b7',
+                  color: '#065f46',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  fontSize: '0.84rem',
+                  fontWeight: 600,
+                  width: '100%',
+                }}
+              >
+                <i className="fa-solid fa-circle-check" style={{ marginRight: '6px' }}></i>
+                {statusNotice}
+              </div>
+            )}
+
+            <div className="saved-sig-pill">
+              {savedAlmacenSig ? (
+                <>
+                  <img src={savedAlmacenSig.dataUrl} alt="Firma Almacén" className="saved-sig-thumb" />
+                  <span style={{ fontWeight: 600, color: '#0f766e' }}>
+                    <i className="fa-solid fa-circle-check" style={{ marginRight: '4px' }}></i>
+                    Firma de Almacén guardada
+                  </span>
+                  <button type="button" className="btn-link-subtle" onClick={() => openSignModal('almacen')}>
+                    <i className="fa-solid fa-pen"></i> Cambiar
+                  </button>
+                  <button type="button" className="btn-link-danger" onClick={handleDeleteSavedAlmacenSig}>
+                    <i className="fa-solid fa-trash"></i>
+                  </button>
+                </>
+              ) : (
+                <button type="button" className="btn-link-subtle" onClick={() => openSignModal('almacen')}>
+                  <i className="fa-solid fa-floppy-disk"></i> Guardar firma reutilizable de Almacén
+                </button>
+              )}
+            </div>
+
             {errorMsg && (
               <div className="firmas-error-banner" style={{ width: '100%', textAlign: 'left' }}>
                 <i className="fa-solid fa-triangle-exclamation"></i>
@@ -677,10 +867,41 @@ export default function FirmasDocumentosPage() {
             </div>
 
             <div className="firmas-toolbar-actions">
+              {savedAlmacenSig ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-ws btn-ws-almacen"
+                    onClick={handleInsertSavedAlmacenSig}
+                    title="Insertar la firma guardada de Almacén con un clic"
+                  >
+                    <i className="fa-solid fa-stamp"></i> + Firma Almacén
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ws"
+                    onClick={() => openSignModal('almacen')}
+                    title="Cambiar firma guardada de Almacén"
+                    style={{ padding: '9px 11px' }}
+                  >
+                    <i className="fa-solid fa-rotate"></i>
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn-ws btn-ws-almacen"
+                  onClick={() => openSignModal('almacen')}
+                  title="Dibuja y guarda la firma de Almacén una sola vez para reutilizarla siempre"
+                >
+                  <i className="fa-solid fa-floppy-disk"></i> Guardar Firma Almacén
+                </button>
+              )}
+
               <button
                 type="button"
                 className="btn-ws btn-ws-sign"
-                onClick={openSignModal}
+                onClick={() => openSignModal('normal')}
               >
                 <i className="fa-solid fa-pen-nib"></i> Dibujar Firma
               </button>
@@ -714,6 +935,23 @@ export default function FirmasDocumentosPage() {
               </button>
             </div>
           </div>
+
+          {statusNotice && (
+            <div
+              style={{
+                background: '#ecfdf5',
+                border: '1px solid #6ee7b7',
+                color: '#065f46',
+                padding: '10px 16px',
+                borderRadius: '10px',
+                fontSize: '0.86rem',
+                fontWeight: 600,
+              }}
+            >
+              <i className="fa-solid fa-circle-check" style={{ marginRight: '6px' }}></i>
+              {statusNotice}
+            </div>
+          )}
 
           {errorMsg && (
             <div className="firmas-error-banner">
@@ -793,8 +1031,13 @@ export default function FirmasDocumentosPage() {
             <div className="firmas-modal-header">
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                 <h3>
-                  <i className="fa-solid fa-pen-nib" style={{ color: '#209D88' }}></i>
-                  Área de Firma — Pantalla Completa
+                  <i
+                    className={`fa-solid ${signModalMode === 'almacen' ? 'fa-floppy-disk' : 'fa-pen-nib'}`}
+                    style={{ color: '#209D88' }}
+                  ></i>
+                  {signModalMode === 'almacen'
+                    ? 'Guardar Firma Reutilizable de Almacén'
+                    : 'Área de Firma — Pantalla Completa'}
                 </h3>
                 {padError && (
                   <span style={{ color: '#dc2626', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -815,13 +1058,42 @@ export default function FirmasDocumentosPage() {
                 >
                   <i className="fa-solid fa-eraser"></i> Limpiar
                 </button>
-                <button
-                  type="button"
-                  className="btn-ws btn-ws-download"
-                  onClick={handleInsertSignature}
-                >
-                  <i className="fa-solid fa-check"></i> Insertar Firma en el Documento
-                </button>
+
+                {signModalMode === 'almacen' ? (
+                  <button
+                    type="button"
+                    className="btn-ws btn-ws-almacen"
+                    disabled={savingAlmacenSig}
+                    onClick={() => handleSaveAsAlmacenSignature(Boolean(fileKind))}
+                  >
+                    <i className="fa-solid fa-floppy-disk"></i>{' '}
+                    {savingAlmacenSig
+                      ? 'Guardando...'
+                      : fileKind
+                        ? 'Guardar y Usar Firma Almacén'
+                        : 'Guardar Firma de Almacén'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="btn-ws btn-ws-almacen"
+                      disabled={savingAlmacenSig}
+                      onClick={() => handleSaveAsAlmacenSignature(true)}
+                      title="Guarda esta firma para reutilizarla con 1 clic en futuras entregas y también la inserta ahora"
+                    >
+                      <i className="fa-solid fa-floppy-disk"></i> Guardar como Firma Almacén
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-ws btn-ws-download"
+                      onClick={handleInsertSignature}
+                    >
+                      <i className="fa-solid fa-check"></i> Insertar Firma en el Documento
+                    </button>
+                  </>
+                )}
+
                 <button
                   type="button"
                   className="firmas-modal-close"
