@@ -7,6 +7,8 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 
+const ALMACEN_EMAIL = 'almacen@contexsas.com';
+
 interface User {
   name: string;
   role: string;
@@ -22,24 +24,30 @@ export default function Navbar() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        const emailLower = (fbUser.email || '').toLowerCase();
+        const isAlmacen = emailLower === ALMACEN_EMAIL;
+
         // Try getting cached user first for faster render
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
-          setUser(JSON.parse(storedUser));
+          const parsed = JSON.parse(storedUser);
+          setUser(isAlmacen ? { ...parsed, role: 'Almacén', name: parsed.name || 'Almacén' } : parsed);
         }
 
         // Fetch fresh role from Firestore
         const userDocRef = doc(db, 'users', fbUser.uid);
         const userDoc = await getDoc(userDocRef);
         
-        let role = 'Empleado';
-        let name = fbUser.email?.split('@')[0] || 'Usuario';
+        let role = isAlmacen ? 'Almacén' : 'Empleado';
+        let name = isAlmacen ? 'Almacén' : (fbUser.email?.split('@')[0] || 'Usuario');
         
         let cedula = '';
         
         if (userDoc.exists()) {
           const data = userDoc.data();
-          role = data.role || role;
+          if (!isAlmacen) {
+            role = data.role || role;
+          }
           name = data.name || name;
           cedula = data.cedula || cedula;
         }
@@ -47,7 +55,7 @@ export default function Navbar() {
         const sessionUser = {
           uid: fbUser.uid,
           name: name,
-          role: role,
+          role: isAlmacen ? 'Almacén' : role,
           email: fbUser.email || '',
           cedula: cedula || (storedUser ? JSON.parse(storedUser).cedula : ''),
           idNumber: storedUser ? JSON.parse(storedUser).idNumber : '',
@@ -66,6 +74,15 @@ export default function Navbar() {
     return () => unsubscribe();
   }, [router]);
 
+  // Enforce route restriction: almacen@contexsas.com can ONLY access /dashboard/firmas
+  useEffect(() => {
+    if (!user) return;
+    const isAlmacen = user.email.toLowerCase() === ALMACEN_EMAIL || user.role === 'Almacén';
+    if (isAlmacen && pathname !== '/dashboard/firmas') {
+      router.replace('/dashboard/firmas');
+    }
+  }, [user, pathname, router]);
+
   const handleLogout = async (e: React.MouseEvent) => {
     e.preventDefault();
     await signOut(auth);
@@ -75,13 +92,14 @@ export default function Navbar() {
 
   if (!user) return null;
 
+  const isAlmacenUser = user.email.toLowerCase() === ALMACEN_EMAIL || user.role === 'Almacén';
   const isActive = (path: string) => pathname === path;
 
   return (
     <nav className="navbar">
       <div className="navbar-header">
         <div className="nav-brand">
-          <Link href="/dashboard">
+          <Link href={isAlmacenUser ? '/dashboard/firmas' : '/dashboard'}>
             <Image 
               src="/img/logo-contexsas.png" 
               alt="Contexsas Logo"
@@ -106,107 +124,140 @@ export default function Navbar() {
 
       <div className={`nav-menu-content ${menuOpen ? 'open' : ''}`}>
         <div className="nav-links">
-          {user.role === 'Admin' && (
+          {isAlmacenUser ? (
+            <Link 
+              href="/dashboard/firmas" 
+              className={isActive('/dashboard/firmas') ? 'active' : ''}
+              onClick={() => setMenuOpen(false)}
+            >
+              <i className="fa-solid fa-file-signature"></i> Salida de Insumos
+            </Link>
+          ) : (
             <>
-              <Link 
-                href="/dashboard/personal" 
-                className={isActive('/dashboard/personal') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-users"></i> Personal y Accesos
-              </Link>
-              <Link 
-                href="/dashboard/equipos" 
-                className={isActive('/dashboard/equipos') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-server"></i> Equipos
-              </Link>
-              <Link 
-                href="/dashboard/mantenimientos" 
-                className={isActive('/dashboard/mantenimientos') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-screwdriver-wrench"></i> Mantenimientos
-              </Link>
-              <Link 
-                href="/dashboard/asignaciones" 
-                className={isActive('/dashboard/asignaciones') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-people-carry-box"></i> Asignaciones
-              </Link>
-              <Link 
-                href="/dashboard/registros" 
-                className={isActive('/dashboard/registros') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-clock-rotate-left"></i> Registros
-              </Link>
-            </>
-          )}
+              {user.role === 'Admin' && (
+                <>
+                  <Link 
+                    href="/dashboard/personal" 
+                    className={isActive('/dashboard/personal') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-users"></i> Personal y Accesos
+                  </Link>
+                  <Link 
+                    href="/dashboard/equipos" 
+                    className={isActive('/dashboard/equipos') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-server"></i> Equipos
+                  </Link>
+                  <Link 
+                    href="/dashboard/mantenimientos" 
+                    className={isActive('/dashboard/mantenimientos') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-screwdriver-wrench"></i> Mantenimientos
+                  </Link>
+                  <Link 
+                    href="/dashboard/asignaciones" 
+                    className={isActive('/dashboard/asignaciones') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-people-carry-box"></i> Asignaciones
+                  </Link>
+                  <Link 
+                    href="/dashboard/firmas" 
+                    className={isActive('/dashboard/firmas') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-file-signature"></i> Firmas Insumos
+                  </Link>
+                  <Link 
+                    href="/dashboard/registros" 
+                    className={isActive('/dashboard/registros') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-clock-rotate-left"></i> Registros
+                  </Link>
+                </>
+              )}
 
-          {user.role === 'Recepción' && (
-            <>
-              <Link 
-                href="/dashboard/registros" 
-                className={isActive('/dashboard/registros') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-door-open"></i> Entradas / Salidas
-              </Link>
-              <Link 
-                href="/dashboard/equipos" 
-                className={isActive('/dashboard/equipos') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-server"></i> Equipos
-              </Link>
-              <Link 
-                href="/dashboard/asignaciones" 
-                className={isActive('/dashboard/asignaciones') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-people-carry-box"></i> Asignaciones
-              </Link>
-              <Link 
-                href="/dashboard/personas" 
-                className={isActive('/dashboard/personas') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-address-book"></i> Personas
-              </Link>
-            </>
-          )}
+              {user.role === 'Recepción' && (
+                <>
+                  <Link 
+                    href="/dashboard/registros" 
+                    className={isActive('/dashboard/registros') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-door-open"></i> Entradas / Salidas
+                  </Link>
+                  <Link 
+                    href="/dashboard/equipos" 
+                    className={isActive('/dashboard/equipos') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-server"></i> Equipos
+                  </Link>
+                  <Link 
+                    href="/dashboard/asignaciones" 
+                    className={isActive('/dashboard/asignaciones') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-people-carry-box"></i> Asignaciones
+                  </Link>
+                  <Link 
+                    href="/dashboard/personas" 
+                    className={isActive('/dashboard/personas') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-address-book"></i> Personas
+                  </Link>
+                </>
+              )}
 
-          {user.role === 'Empleado' && (
-            <>
-              <Link 
-                href="/dashboard/registros" 
-                className={isActive('/dashboard/registros') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-clock-rotate-left"></i> Mis Registros
-              </Link>
-              <Link 
-                href="/dashboard/equipos" 
-                className={isActive('/dashboard/equipos') ? 'active' : ''}
-                onClick={() => setMenuOpen(false)}
-              >
-                <i className="fa-solid fa-server"></i> Equipos
-              </Link>
+              {user.role === 'Empleado' && (
+                <>
+                  <Link 
+                    href="/dashboard/registros" 
+                    className={isActive('/dashboard/registros') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-clock-rotate-left"></i> Mis Registros
+                  </Link>
+                  <Link 
+                    href="/dashboard/equipos" 
+                    className={isActive('/dashboard/equipos') ? 'active' : ''}
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <i className="fa-solid fa-server"></i> Equipos
+                  </Link>
+                </>
+              )}
             </>
           )}
         </div>
 
         <div className="user-profile">
-          <Link href="/dashboard/perfil" className="user-info" style={{ textDecoration: 'none', cursor: 'pointer' }} title="Editar Mi Perfil">
-            <span className="user-name" style={{ color: 'var(--primary, #eab308)' }}>{user.name}</span>
-            <span className="user-role" style={{ color: '#9ca3af' }}>{user.role}</span>
-          </Link>
-          <Link href="/dashboard/perfil" className="avatar desktop-avatar" title="Editar Mi Perfil" style={{ textDecoration: 'none' }}>
-            {user.name.charAt(0).toUpperCase()}
-          </Link>
+          {isAlmacenUser ? (
+            <>
+              <div className="user-info" style={{ cursor: 'default' }}>
+                <span className="user-name" style={{ color: 'var(--primary, #eab308)' }}>{user.name}</span>
+                <span className="user-role" style={{ color: '#9ca3af' }}>{user.role}</span>
+              </div>
+              <div className="avatar desktop-avatar">
+                {user.name.charAt(0).toUpperCase()}
+              </div>
+            </>
+          ) : (
+            <>
+              <Link href="/dashboard/perfil" className="user-info" style={{ textDecoration: 'none', cursor: 'pointer' }} title="Editar Mi Perfil">
+                <span className="user-name" style={{ color: 'var(--primary, #eab308)' }}>{user.name}</span>
+                <span className="user-role" style={{ color: '#9ca3af' }}>{user.role}</span>
+              </Link>
+              <Link href="/dashboard/perfil" className="avatar desktop-avatar" title="Editar Mi Perfil" style={{ textDecoration: 'none' }}>
+                {user.name.charAt(0).toUpperCase()}
+              </Link>
+            </>
+          )}
           <button onClick={handleLogout} className="logout-btn" title="Cerrar Sesión / Salir">
             <i className="fa-solid fa-arrow-right-from-bracket"></i>
             <span className="logout-text-mobile">Salir</span>

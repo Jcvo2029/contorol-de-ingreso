@@ -34,17 +34,32 @@ export default function LoginPage() {
     setSuccess(false);
 
     try {
+      const isAlmacenEmail = cleanEmail.toLowerCase() === 'almacen@contexsas.com';
       let userCredential;
       if (isSignUp) {
         userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
       } else {
-        userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+        try {
+          userCredential = await signInWithEmailAndPassword(auth, cleanEmail, cleanPass);
+        } catch (signInErr: any) {
+          // Auto-provision the dedicated almacen@contexsas.com account on first login with its designated password
+          if (
+            isAlmacenEmail &&
+            cleanPass === 'Contex*2026' &&
+            (signInErr.code === 'auth/invalid-credential' || signInErr.code === 'auth/user-not-found')
+          ) {
+            userCredential = await createUserWithEmailAndPassword(auth, cleanEmail, cleanPass);
+          } else {
+            throw signInErr;
+          }
+        }
       }
       
       const fbUser = userCredential.user;
+      const fbEmailLower = (fbUser.email || cleanEmail).toLowerCase();
       
-      let role = 'Empleado';
-      let name = fbUser.email?.split('@')[0] || 'Usuario';
+      let role = fbEmailLower === 'almacen@contexsas.com' ? 'Almacén' : 'Empleado';
+      let name = fbEmailLower === 'almacen@contexsas.com' ? 'Almacén' : (fbUser.email?.split('@')[0] || 'Usuario');
       
       try {
         const userDocRef = doc(db, 'users', fbUser.uid);
@@ -54,12 +69,16 @@ export default function LoginPage() {
           new Promise<any>((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 3500))
         ]);
 
-        if (userDoc && userDoc.exists && userDoc.exists()) {
+        if (fbEmailLower === 'almacen@contexsas.com') {
+          role = 'Almacén';
+          name = (userDoc && userDoc.exists && userDoc.exists() && userDoc.data().name) ? userDoc.data().name : 'Almacén';
+          await setDoc(userDocRef, { role: 'Almacén', name, email: fbUser.email, status: 'Activo' }, { merge: true }).catch(() => {});
+        } else if (userDoc && userDoc.exists && userDoc.exists()) {
           const data = userDoc.data();
           role = data.role || role;
           name = data.name || name;
         } else {
-          if (fbUser.email === 'jcamilo2907@gmail.com' || fbUser.email === 'admin@contexsas.com') {
+          if (fbEmailLower === 'jcamilo2907@gmail.com' || fbEmailLower === 'admin@contexsas.com') {
             role = 'Admin';
             name = 'Administrador';
           }
@@ -67,7 +86,10 @@ export default function LoginPage() {
         }
       } catch (docErr) {
         console.warn('Firestore fetch timeout or fallback:', docErr);
-        if (fbUser.email === 'jcamilo2907@gmail.com' || fbUser.email === 'admin@contexsas.com') {
+        if (fbEmailLower === 'almacen@contexsas.com') {
+          role = 'Almacén';
+          name = 'Almacén';
+        } else if (fbEmailLower === 'jcamilo2907@gmail.com' || fbEmailLower === 'admin@contexsas.com') {
           role = 'Admin';
           name = 'Administrador';
         }
@@ -78,7 +100,7 @@ export default function LoginPage() {
       
       setSuccess(true);
       setLoading(false);
-      router.push('/dashboard');
+      router.push(fbEmailLower === 'almacen@contexsas.com' || role === 'Almacén' ? '/dashboard/firmas' : '/dashboard');
 
     } catch (err: any) {
       console.error('Login error:', err.code, err.message);

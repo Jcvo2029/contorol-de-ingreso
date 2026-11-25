@@ -76,6 +76,10 @@ export default function DashboardPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
+        if ((fbUser.email || '').toLowerCase() === 'almacen@contexsas.com') {
+          router.replace('/dashboard/firmas');
+          return;
+        }
         const storedUser = localStorage.getItem('user');
         let role = 'Empleado';
         let name = fbUser.email?.split('@')[0] || 'Usuario';

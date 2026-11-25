@@ -8,7 +8,7 @@ interface Usuario {
   id: string;
   name: string;
   email: string;
-  role: 'Admin' | 'Guarda' | 'Empleado';
+  role: 'Admin' | 'Guarda' | 'Empleado' | 'Almacén';
   status: 'Activo' | 'Inactivo';
   createdAt: any;
 }
@@ -24,7 +24,7 @@ export default function UsuariosPage() {
   // Form state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState<'Admin' | 'Guarda' | 'Empleado'>('Empleado');
+  const [role, setRole] = useState<'Admin' | 'Guarda' | 'Empleado' | 'Almacén'>('Empleado');
   const [status, setStatus] = useState<'Activo' | 'Inactivo'>('Activo');
   const [password, setPassword] = useState(''); // Solo para visualización o si luego se usa Auth
 
@@ -175,6 +175,7 @@ export default function UsuariosPage() {
                 <option value="Admin">Administrador</option>
                 <option value="Guarda">Guarda</option>
                 <option value="Empleado">Empleado</option>
+                <option value="Almacén">Almacén (Firmas Insumos)</option>
               </select>
             </div>
             <div className="form-group" style={{ flex: '1' }}>

@@ -859,11 +859,6 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               <i className="fa-solid fa-pen-nib"></i> Firmar (Colaborador)
             </button>
           )}
-          {!asignacion.firmaGerencia && (
-            <button onClick={() => handleOpenModal('gerencia')} className="btn-firmar">
-              <i className="fa-solid fa-pen-nib"></i> Firmar (Gerencia)
-            </button>
-          )}
         </div>
       </div>
 
@@ -1529,21 +1524,6 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
               <p>C.C. {persona?.idNumber || ''}</p>
             </div>
           </div>
-          <div className="firma-box">
-            {asignacion.firmaGerencia && (
-              <div style={{ textAlign: 'center', marginBottom: '5px', position: 'relative' }}>
-                <img src={asignacion.firmaGerencia} alt="Firma Gerencia" style={{ maxHeight: '70px', maxWidth: '100%', display: 'inline-block' }} />
-                <button onClick={() => handleDeleteSignature('gerencia')} className="btn-delete-signature no-print" title="Borrar firma">
-                  <i className="fa-solid fa-trash"></i>
-                </button>
-              </div>
-            )}
-            <div className="firma-line" style={asignacion.firmaGerencia ? { marginTop: '5px' } : {}}>
-              <p><strong>Autorizado por:</strong></p>
-              <p>Joussette Abudinen</p>
-              <p>Gerencia</p>
-            </div>
-          </div>
         </div>
 
       </div>
@@ -1552,8 +1532,7 @@ export default function ActaPage({ params }: { params: Promise<{ id: string }> }
         <div className="modal-overlay">
           <div className="modal-content signature-modal">
             <h3>
-              {signingRole === 'colaborador' ? 'Firma del Colaborador' : 
-               signingRole === 'entrega' ? 'Firma de Entrega' : 'Firma de Gerencia'}
+              {signingRole === 'colaborador' ? 'Firma del Colaborador' : 'Firma de Entrega'}
             </h3>
             <p style={{ marginBottom: '15px', color: '#4b5563', fontSize: '0.9rem' }}>Por favor, firme en el recuadro blanco usando su dedo o el mouse.</p>
             
